@@ -14,8 +14,9 @@ import { startStaticServer } from '../runner/sandbox/server.ts';
 import { verdict as intervalVerdict, wilson, type Interval } from '../scorer/stats.ts';
 import { requireApproval } from './approve.ts';
 import type { Ledger } from './facts.ts';
-import { allowedLinks, buildBrief, designMock, mechanicalProblems, reviewClaims, visibleText } from './mock.ts';
-import { logCost, readCosts, type ProjectLayout } from './project.ts';
+import type { AgentRunner } from './agent.ts';
+import { buildBrief, checkAgainstRepo, designMock, mechanicalProblems, ownPlaces, reviewClaims, visibleText } from './mock.ts';
+import { freshScratch, logCost, readCosts, type ProjectLayout } from './project.ts';
 import { agentStage } from './agentstage.ts';
 import type { AgentStage, DecideStage, PipelineSpec, ReadStage, TryStage } from './spec.ts';
 import { startContainer, tryStage, type Machine, type TryResult } from './try.ts';
@@ -181,9 +182,9 @@ export async function scoreMock(options: ScoreOptions): Promise<MockScore> {
       await writeFile(path.join(workdir, 'spec.yaml'), JSON.stringify(engineSpec, null, 2) + '\n');
 
       log(`  ${stage.id}: ${spec.personas.length} people x ${stage.viewports.length} screens x ${options.runs} visits`);
-      // A mock loads nothing from outside, so one outside request fails it.
+      // The owner's rule: local copies only, with outside requests blocked. A blocked request is recorded, not a failure.
       await simulate(
-        ['--workdir', workdir, '--target', server.origin, '--run', run, '--runs', String(options.runs), '--budget-usd', Math.max(0.05, options.budgetUsd - score.costUsd).toFixed(2), '--outside-requests', 'fail'],
+        ['--workdir', workdir, '--target', server.origin, '--run', run, '--runs', String(options.runs), '--budget-usd', Math.max(0.05, options.budgetUsd - score.costUsd).toFixed(2), '--outside-requests', 'block'],
         { llm, log: () => {}, logError: () => {} },
       );
       const report = JSON.parse(await readFile(path.join(workdir, 'reports', `${run}.json`), 'utf8')) as EngineReport;
@@ -293,6 +294,12 @@ export interface LoopOptions {
   tryCount?: number;
   startMachine?: (stage: TryStage, n: number) => Promise<Machine>;
   log?: (line: string) => void;
+  /** A session that can read the repository, to check statements the ledger does not cover. Without it, the ledger is the limit. */
+  agent?: AgentRunner;
+  /** The repository folders the product's truth comes from. */
+  sourceDirs?: string[];
+  /** Places the owner named as their own, which a page may link to. */
+  ownPlaces?: string[];
   /** Carry on from this earlier design instead of starting again. */
   resumeFrom?: number;
   /** Score the resumed design again before carrying on, because the referee has changed since. */
@@ -360,9 +367,13 @@ export async function runDesignLoop(options: LoopOptions): Promise<LoopResult> {
   const maxIterations = options.maxIterations ?? 6;
   const runs = options.runs ?? 4;
   const tryCount = options.tryCount ?? 5;
-  const brief = buildBrief(spec, ledger);
-  const links = allowedLinks(spec, ledger);
-  await writeFile(path.join(l.brief, 'brief.md'), brief);
+  const places = ownPlaces(spec, ledger, options.ownPlaces ?? []);
+  const baseBrief = buildBrief(spec, ledger, places);
+  await writeFile(path.join(l.brief, 'brief.md'), baseBrief);
+  // Statements beyond the ledger that were checked against the repository during this run.
+  const verifiedFile = path.join(l.evidence, 'verified-claims.json');
+  const verified: { claim: string; file: string; line: number; quote: string }[] = await readFile(verifiedFile, 'utf8').then((t) => JSON.parse(t), () => []);
+  const briefNow = () => (verified.length === 0 ? baseBrief : `${baseBrief}\n# Also checked against the repository during this run\n\n${verified.map((v) => `- ${v.claim}`).join('\n')}\n`);
 
   const iterations: IterationRecord[] = [];
   // Carrying on from an earlier design: it is the one to beat, and new designs are numbered after the last one made.
@@ -403,16 +414,29 @@ export async function runDesignLoop(options: LoopOptions): Promise<LoopResult> {
     let rejected: string[] | undefined;
     for (let attempt = 1; attempt <= GUARDRAIL_TRIES && !html; attempt++) {
       const previous = best ? { html: await readFile(path.join(best.dir, 'index.html'), 'utf8'), findings: best.score.findings + unseenNote(best.score) } : undefined;
-      const design = await designMock(llm, { brief, iteration, previous, rejected });
+      const design = await designMock(llm, { brief: briefNow(), iteration, previous, rejected });
       cost += design.costUsd;
       await logCost(l, { step: 'design', what: `designer, design ${iteration} attempt ${attempt}`, usd: design.costUsd, durationMs: 0 });
 
-      const problems = mechanicalProblems(design.html, links);
+      const problems = mechanicalProblems(design.html, places);
       if (problems.length === 0) {
-        const review = await reviewClaims(llm, design.html, ledger);
+        const review = await reviewClaims(llm, design.html, ledger, verified.map((v) => v.claim));
         cost += review.costUsd;
         await logCost(l, { step: 'design', what: `claims review, design ${iteration} attempt ${attempt}`, usd: review.costUsd, durationMs: 0 });
-        problems.push(...review.violations.map((v) => `The page says "${v.statement}". ${v.why}`));
+        let violations = review.violations;
+        // "True" means the repository supports it, not that it is on a list. Look up what the ledger does not cover.
+        if (violations.length > 0 && options.agent && (options.sourceDirs?.length ?? 0) > 0) {
+          const check = await checkAgainstRepo(options.agent, violations, ledger, options.sourceDirs!, await freshScratch(l, 'claims-check'), Math.min(1.5, Math.max(0.2, await left())));
+          cost += check.costUsd;
+          await logCost(l, { step: 'design', what: `repository check of ${violations.length} statement(s), design ${iteration} attempt ${attempt}`, usd: check.costUsd, durationMs: 0, detail: { supported: check.supported.length } });
+          if (check.supported.length > 0) {
+            verified.push(...check.supported.map(({ claim, file, line, quote }) => ({ claim, file, line, quote })));
+            await writeFile(verifiedFile, JSON.stringify(verified, null, 2) + '\n');
+            log(`  ${check.supported.length} statement(s) beyond the ledger checked out against the repository`);
+          }
+          violations = check.unsupported;
+        }
+        problems.push(...violations.map((v) => `The page says "${v.statement}". ${v.why}`));
       }
       if (problems.length === 0) {
         html = design.html;

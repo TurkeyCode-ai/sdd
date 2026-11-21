@@ -157,7 +157,12 @@ export async function designCommand(args: string[], deps: PipelineCliDeps & { ll
     const resumeFrom = parsed.values.from === undefined ? undefined : Number(parsed.values.from);
     const made = (await readdir(l.design).catch(() => [] as string[])).map((d) => Number(d.match(/^iter-(\d+)$/)?.[1])).filter((n) => !Number.isNaN(n));
     const startAt = made.length > 0 ? Math.max(...made) + 1 : 0;
+    // The owner's own places and the repository folders, for the guardrails.
+    const rules = await readFile(path.join(path.dirname(l.referee), 'rules.json'), 'utf8').then((t) => JSON.parse(t) as { ownPlaces?: string[] }, () => ({} as { ownPlaces?: string[] }));
+    const sources = await readFile(path.join(l.evidence, 'sources.json'), 'utf8').then((t) => JSON.parse(t) as string[], () => [] as string[]);
+    const sourceDirs = sources.filter((x) => !/^https?:/.test(x)).map((x) => path.resolve(x.replace(/^~(?=\/)/, process.env.HOME ?? '~')));
     const result = await runDesignLoop({
+      agent: deps.agent ?? createClaudeAgent(), sourceDirs, ownPlaces: rules.ownPlaces ?? [],
       layout: l, spec, ledger, llm: deps.llm ?? createLLM(), log,
       maxIterations: Number(parsed.values.iterations), runs: Number(parsed.values.runs), tryCount: Number(parsed.values.try),
       ...(resumeFrom === undefined ? {} : { resumeFrom, startAt, rescoreFirst: parsed.values.rescore }),

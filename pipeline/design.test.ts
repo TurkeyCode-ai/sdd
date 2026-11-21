@@ -7,7 +7,7 @@ import type { LLM, LLMRequest } from '../runner/llm/types.ts';
 import { wilson } from '../scorer/stats.ts';
 import { engineDecideSpec, engineReadSpec, improved, mockVerdict, shortfall, workingMet, type MockScore } from './designloop.ts';
 import { parseLedger } from './facts.ts';
-import { allowedLinks, buildBrief, mechanicalProblems, reviewClaims, visibleText } from './mock.ts';
+import { buildBrief, checkAgainstRepo, mechanicalProblems, ownPlaces, reviewClaims, visibleText } from './mock.ts';
 import { parsePipelineSpec, type TryStage } from './spec.ts';
 import { imageOf, taskSentence, tryOnce, tryStage, type Machine } from './try.ts';
 
@@ -77,25 +77,23 @@ test('the brief has the people the designer may see, and nothing of the held-bac
 
 const page = (body: string, head = '') => `<!doctype html><html><head><style>body{font:16px sans-serif}</style>${head}</head><body>${body}</body></html>`;
 
-test('a clean page passes the checks done by code', () => {
-  const links = allowedLinks(spec, ledger);
-  assert.ok(links.includes('github.com/acme/widget'));
-  assert.deepEqual(mechanicalProblems(page('<h1>Widget</h1><a href="https://github.com/acme/widget">GitHub</a><a href="#start">Start</a>'), links), []);
-  // The same place with "www." or a path after it is still the same place.
-  assert.deepEqual(mechanicalProblems(page('<a href="https://www.github.com/acme/widget#readme">GitHub</a>'), links), []);
-  assert.equal(mechanicalProblems(page('<a href="https://github.com/acme/other">Other</a>'), links).length, 1);
+test('links stay in the owner\'s own places', () => {
+  const places = ownPlaces(spec, ledger, ['widget.dev']);
+  assert.ok(places.includes('github.com/acme/widget'));
+  assert.deepEqual(mechanicalProblems(page('<h1>Widget</h1><a href="https://github.com/acme/widget">GitHub</a><a href="#start">Start</a><a href="/docs">Docs</a>'), places), []);
+  // "www." and a path under one of the owner's places are still the owner's.
+  assert.deepEqual(mechanicalProblems(page('<a href="https://www.github.com/acme/widget#readme">GitHub</a><a href="https://widget.dev/docs">Docs</a>'), places), []);
+  assert.equal(mechanicalProblems(page('<a href="https://github.com/acme/other">Other</a>'), places).length, 1);
+  assert.equal(mechanicalProblems(page('<a href="https://twitter.com/acme">Follow</a>'), places).length, 1);
 });
 
-test('em dashes, outside files and links to anywhere else are each caught', () => {
-  const links = allowedLinks(spec, ledger);
-  const bad = page(
-    '<h1>Widget — fast</h1><img src="https://cdn.example.com/a.png"><a href="https://twitter.com/acme">Follow</a>',
-    '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter"><script src="https://cdn.example.com/x.js"></script>',
-  );
-  const problems = mechanicalProblems(bad, links);
-  assert.equal(problems.length, 5);
-  assert.ok(problems.some((p) => p.includes('em dash')));
-  assert.ok(problems.some((p) => p.includes('https://twitter.com/acme')));
+test('an em dash fails a page; files from elsewhere do not, since they are blocked when visitors see it', () => {
+  const places = ownPlaces(spec, ledger);
+  const outside = page('<h1>Widget</h1><img src="https://cdn.example.com/a.png">', '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter"><script src="https://cdn.example.com/x.js"></script>');
+  assert.deepEqual(mechanicalProblems(outside, places), []);
+  const problems = mechanicalProblems(page('<h1>Widget — fast</h1>'), places);
+  assert.equal(problems.length, 1);
+  assert.ok(problems[0]!.includes('em dash'));
 });
 
 test('the text a visitor reads leaves out styles, scripts and tags', () => {
@@ -215,4 +213,43 @@ test('a pass needs the seen people, the held-back people and the try stage all c
   assert.equal(mockVerdict(score({ what: 0.98, start: 0.98, task: 0.9, tried: [5, 5] }, 1)), 'inside the noise', 'five developers cannot show 80%');
   assert.equal(mockVerdict({ ...score({ what: 0.98, start: 0.98, task: 0.9 }, 1), notRun: [{ stage: 'try', why: 'x' }] }), 'incomplete');
   assert.equal(workingMet(score({ what: 0.98, start: 0.98, task: 0.9 }, 0.3)), true);
+});
+
+// ---- True means the repository supports it ----
+
+test('a statement beyond the ledger is kept only if its citation is really in the repository', async () => {
+  const { mkdtemp, mkdir: mk, writeFile: wf } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const pathMod = await import('node:path');
+  const repo = await mkdtemp(pathMod.join(tmpdir(), 'sdd-repo-'));
+  const scratch = await mkdtemp(pathMod.join(tmpdir(), 'sdd-scratch-'));
+  await mk(pathMod.join(repo, 'src'), { recursive: true });
+  await wf(pathMod.join(repo, 'src', 'cli.ts'), 'const a = 1;\nconsole.log("WIDGET ORCHESTRATOR banner");\n');
+  const violations = [
+    { statement: 'Widget prints a banner when it starts.', why: 'Not in the ledger.' },
+    { statement: 'Widget is used by 4,000 teams.', why: 'Not in the ledger.' },
+    { statement: 'Widget resumes after a crash.', why: 'Not in the ledger.' },
+  ];
+  let asked = '';
+  const agent = {
+    async run(options: { prompt: string; cwd: string }) {
+      asked = options.prompt;
+      await wf(pathMod.join(options.cwd, 'verified.json'), JSON.stringify([
+        { n: 1, supported: true, claim: 'The CLI prints a banner.', file: 'src/cli.ts', line: 2, quote: 'WIDGET ORCHESTRATOR banner' },
+        { n: 2, supported: false, why: 'No such number anywhere in the repository.' },
+        // Claims support, but the quote is not in the file: code must refuse it.
+        { n: 3, supported: true, claim: 'It resumes.', file: 'src/cli.ts', line: 1, quote: 'resumeAfterCrash()' },
+      ]));
+      return { ok: true, text: '', costUsd: 0.2, durationMs: 1 };
+    },
+  };
+  const check = await checkAgainstRepo(agent, violations, ledger, [repo], scratch, 1);
+  assert.deepEqual(check.supported.map((s) => s.statement), ['Widget prints a banner when it starts.']);
+  assert.equal(check.unsupported.length, 2);
+  assert.match(check.unsupported[0]!.why, /No such number/);
+  assert.match(check.unsupported[1]!.why, /did not check out/);
+  assert.match(asked, /Trusted by thousands of teams/);
+  assert.equal(check.costUsd, 0.2);
+  // With no repository to read, the ledger stays the limit.
+  assert.equal((await checkAgainstRepo(agent, violations, ledger, [], scratch, 1)).unsupported.length, 3);
 });
