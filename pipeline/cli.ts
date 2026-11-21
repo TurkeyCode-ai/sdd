@@ -208,7 +208,8 @@ export async function scoreCommand(args: string[], deps: PipelineCliDeps & { llm
     const runs = Number(parsed.values.runs);
     const tryCount = Number(parsed.values.try);
     const evidenceDir = path.join(l.evidence, 'score', name);
-    const score = await scoreMock({ layout: l, spec, mockDir: path.resolve(page), evidenceDir, runs, tryCount, budgetUsd: left, llm: deps.llm ?? createLLM(), log });
+    const ledger = parseLedger(JSON.parse(await readFile(l.factsFile, 'utf8')));
+    const score = await scoreMock({ layout: l, spec, mockDir: path.resolve(page), evidenceDir, runs, tryCount, budgetUsd: left, llm: deps.llm ?? createLLM(), ledger, log });
     await logCost(l, { step: 'design', what: `simulation, page "${name}"`, usd: score.costUsd, durationMs: 0, detail: { runs, tryCount } });
     const verdict = mockVerdict(score);
     await writeFile(path.join(evidenceDir, 'score.json'), JSON.stringify({ name, page: path.resolve(page), runs, tryCount, verdict, score }, null, 2) + '\n');

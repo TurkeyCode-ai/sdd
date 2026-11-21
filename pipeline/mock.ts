@@ -20,6 +20,15 @@ export function buildBrief(spec: PipelineSpec, ledger: Ledger): string {
       const actions = [...s.success.leavesTo.map((a) => `a link to an address that includes ${a}`), ...s.success.clicks.map((c) => `a control labelled with "${c}"`)];
       return `- Deciding: ${s.goal} Nobody asks them to act, and leaving is the default. It counts only if they use: ${actions.join('; ')}.`;
     }
+    if (s.kind === 'agent') {
+      const shown = s.requests.filter((r) => !r.holdout);
+      return [
+        `- AI agents as visitors: ${s.goal} A developer asks their coding agent for something. The agent reads this page's whole text, with no layout or images, and replies to its developer. Developers ask things like:`,
+        ...shown.map((r) => `  - "${r.ask}" (${r.fits ? 'the product fits this' : 'the product does NOT fit this'})`),
+        `  When the product fits, it counts if the agent recommends it, says nothing false, and gets these right: ${s.required.join('; ')}.`,
+        '  When the product does not fit, it counts only if the agent does not recommend it. So say plainly what the product is not for. Other requests you are not shown are tried too.',
+      ].join('\n');
+    }
     return `- Trying: ${s.goal} A developer at a terminal on a clean machine (${s.machine.preinstalled.join(', ')}; without: ${s.machine.notPresent.join(', ')}) gets only this page's text and follows it. It counts when: ${s.success.observable}`;
   };
   return [

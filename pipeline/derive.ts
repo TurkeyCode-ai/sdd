@@ -38,7 +38,7 @@ The personas
 - Mark 2 or 3 as holdout: true. They check that the design works for people it was not tuned for, and that only works if they are the same kind of people as the rest. So most held-back people are from the main audience: as likely to arrive as the ones the designer sees, differing from them in the ordinary ways (what they use, where they came from, what they doubt). At most one held-back person is an adjacent outlier. Never hold back only the unusual ones.
 
 The stages
-A result usually takes more than one step to reach. Write one stage per step, in order. Three kinds exist:
+A result usually takes more than one step to reach. Write one stage per step, in order. Four kinds exist:
 - "read": the person skims the page for a fixed time, the page is taken away, and they answer questions from memory. A judge grades each answer against a rubric.
   - 2 to 4 questions. The first asks what this is and who it is for, in their own words.
   - Never ask a yes or no question, or whether they liked it or would use it. Simulated people are agreeable and their stated intent predicts nothing. Ask for things they can only state if the page got them across.
@@ -50,9 +50,15 @@ A result usually takes more than one step to reach. Write one stage per step, in
   - given: what the agent is handed. It is never handed anything the site does not say.
   - success.observable: what has to be seen for it to count. success.check: how the engine sees it (a file that exists, a process output line, an exit code). Never the agent's own claim that it worked.
   - Be honest about what a clean machine cannot do. If the product needs an account, a login or a paid key, say exactly where a clean machine stops, and put what you cannot decide in openQuestions.
+- "agent": the visitor is an AI agent, not a person. Use it when the result names agents, or when part of the audience would ask their coding agent to find, judge or install the product. A developer asks their agent for something; the agent reads the whole page as text (no layout, no images, no time limit) and replies to its developer; a judge grades the reply against the ledger.
+  - requests: 5 to 8 things a developer in this audience would really type to their agent, in their words, never naming the product. Vary the need and the wording.
+  - fits: whether the product truly is a fit for that request, decided from the repo. Include at least 2 requests it does NOT fit, the near misses an eager page would win wrongly. For those the right reply is not to recommend it.
+  - holdout: mark 2 or 3 as held back, at least one of them a request the product fits. Like held-back people, they are the same kind of request as the rest, not the odd ones.
+  - required: 1 to 4 points a recommendation has to get right for the developer to act on it: the exact command, what must be in place first. Take them from the ledger.
+  - threshold: the share of replies that must count. An agent reads everything, so this can be higher than for a skimming person; give the reason.
 
 The thresholds
-- Every question and every decide or try stage has a threshold, the share who must succeed, and a one-line reason.
+- Every question and every decide, try or agent stage has a threshold, the share who must succeed, and a one-line reason.
 - Use 0.8 for the core "what is this" question and 0.6 to 0.7 for other questions, unless the result treats the point as secondary.
 - For decide and try, do not copy those numbers. Think about what share is plausible for this kind of step and this audience, and give the reason.
 
@@ -89,7 +95,10 @@ const SPEC_SHAPE = `{
     { "id": "try", "kind": "try", "goal": "...",
       "machine": { "image": "...", "preinstalled": ["..."], "notPresent": ["..."] },
       "given": "...", "success": { "observable": "...", "check": "..." },
-      "timeLimitSeconds": 600, "threshold": 0.6, "reason": "..." }
+      "timeLimitSeconds": 600, "threshold": 0.6, "reason": "..." },
+    { "id": "agent", "kind": "agent", "goal": "...",
+      "requests": [ { "id": "short-id", "ask": "what the developer types to their agent", "fits": true, "holdout": false } ],
+      "required": ["1 to 4 points"], "threshold": 0.8, "reason": "..." }
   ],
   "assumptions": [
     { "id": "short-id", "statement": "...", "value": 1.2, "unit": "seconds", "source": "measured", "how": "...",

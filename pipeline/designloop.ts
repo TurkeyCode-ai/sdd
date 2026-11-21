@@ -16,7 +16,8 @@ import { requireApproval } from './approve.ts';
 import type { Ledger } from './facts.ts';
 import { allowedLinks, buildBrief, designMock, mechanicalProblems, reviewClaims, visibleText } from './mock.ts';
 import { logCost, readCosts, type ProjectLayout } from './project.ts';
-import type { DecideStage, PipelineSpec, ReadStage, TryStage } from './spec.ts';
+import { agentStage } from './agentstage.ts';
+import type { AgentStage, DecideStage, PipelineSpec, ReadStage, TryStage } from './spec.ts';
 import { startContainer, tryStage, type Machine, type TryResult } from './try.ts';
 
 // ---- Turning a stage into what the engine runs ----
@@ -139,7 +140,9 @@ export interface ScoreOptions {
   llm: LLM;
   loadSeconds?: number;
   /** Stage kinds to score. Default: all. */
-  only?: ('read' | 'decide' | 'try')[];
+  only?: ('read' | 'decide' | 'try' | 'agent')[];
+  /** Needed for the agent stage, whose judge checks replies against it. */
+  ledger?: Ledger;
   startMachine?: (stage: TryStage, n: number) => Promise<Machine>;
   log?: (line: string) => void;
 }
@@ -160,7 +163,7 @@ async function leaveReasons(workdir: string, experiment: string, run: string): P
 export async function scoreMock(options: ScoreOptions): Promise<MockScore> {
   const { layout: l, spec, llm } = options;
   const log = options.log ?? (() => {});
-  const only = options.only ?? ['read', 'decide', 'try'];
+  const only = options.only ?? ['read', 'decide', 'try', 'agent'];
   const score: MockScore = { questions: [], findings: '', costUsd: 0, notRun: [] };
   const findings: string[] = [];
   const run = 'score';
@@ -169,7 +172,7 @@ export async function scoreMock(options: ScoreOptions): Promise<MockScore> {
   const server = await startStaticServer(options.mockDir);
   try {
     for (const stage of spec.stages) {
-      if (stage.kind === 'try' || !only.includes(stage.kind)) continue;
+      if (stage.kind === 'try' || stage.kind === 'agent' || !only.includes(stage.kind)) continue;
       const workdir = path.join(options.evidenceDir, stage.id);
       await rm(workdir, { recursive: true, force: true });
       await mkdir(workdir, { recursive: true });
@@ -238,6 +241,36 @@ export async function scoreMock(options: ScoreOptions): Promise<MockScore> {
       findings.push('');
     } catch (err) {
       score.notRun.push({ stage: tryDef.id, why: (err as Error).message });
+    }
+  }
+
+  const agentDef = spec.stages.find((s): s is AgentStage => s.kind === 'agent');
+  if (agentDef && only.includes('agent') && options.runs > 0) {
+    if (!options.ledger) {
+      score.notRun.push({ stage: agentDef.id, why: 'no ledger was given to check replies against' });
+    } else {
+      log(`  ${agentDef.id}: ${agentDef.requests.length} requests x ${options.runs} agents`);
+      const html = await readFile(path.join(options.mockDir, 'index.html'), 'utf8');
+      const result = await agentStage(agentDef, visibleText(html), options.ledger, llm, options.runs);
+      score.costUsd += result.costUsd;
+      await writeFile(path.join(options.evidenceDir, `${agentDef.id}.json`), JSON.stringify(result, null, 2) + '\n');
+      score.questions.push({ stage: agentDef.id, id: 'agent', ask: agentDef.goal, threshold: agentDef.threshold, working: result.working, holdout: result.holdout });
+      const errored = result.runs.filter((r) => r.note.startsWith('error:')).length;
+      if (errored > 0) score.notRun.push({ stage: agentDef.id, why: `${errored} agent replies failed to run` });
+      // Only the requests the designer may see. What held-back requests produced stays with the referee.
+      const shown = result.runs.filter((r) => !r.holdout);
+      findings.push(`## AI agents asked by their developer (${agentDef.id})`, '', `- ${result.working.passed} of ${result.working.n} replies counted, needs ${pct(agentDef.threshold)}`);
+      const failed = shown.filter((r) => !r.met);
+      if (failed.length > 0) {
+        findings.push('', 'Replies that did not count:');
+        for (const r of failed.slice(0, 8)) {
+          const ask = agentDef.requests.find((q) => q.id === r.request)?.ask ?? r.request;
+          const why = !r.fits ? 'the product does not fit this and the agent recommended it anyway'
+            : [!r.recommended ? 'the agent did not recommend it' : '', r.missing.length ? `left out: ${r.missing.join('; ')}` : '', r.falseStatements.length ? `said something untrue: ${r.falseStatements.join('; ')}` : ''].filter(Boolean).join('. ');
+          findings.push(`- Asked "${ask.slice(0, 160)}": ${why}. The agent said: ${r.reply.slice(0, 300)}`);
+        }
+      }
+      findings.push('');
     }
   }
 
@@ -341,7 +374,7 @@ export async function runDesignLoop(options: LoopOptions): Promise<LoopResult> {
     log(`--- Design ${best.iteration}, scored again ---`);
     const again = await scoreMock({
       layout: l, spec, mockDir: best.dir, evidenceDir: path.join(l.evidence, 'design', `iter-${best.iteration}-rescored`),
-      runs, tryCount, budgetUsd: Math.max(0.5, approval.budgetUsd - (await designSpend(l))), llm, startMachine: options.startMachine, log,
+      runs, tryCount, budgetUsd: Math.max(0.5, approval.budgetUsd - (await designSpend(l))), llm, ledger, startMachine: options.startMachine, log,
     });
     await logCost(l, { step: 'design', what: `simulation, design ${best.iteration} scored again`, usd: again.costUsd, durationMs: 0, detail: { runs, tryCount } });
     const v = mockVerdict(again);
@@ -401,7 +434,7 @@ export async function runDesignLoop(options: LoopOptions): Promise<LoopResult> {
 
     const score = await scoreMock({
       layout: l, spec, mockDir: dir, evidenceDir: path.join(l.evidence, 'design', `iter-${iteration}`),
-      runs, tryCount, budgetUsd: Math.max(0.5, await left()), llm, startMachine: options.startMachine, log,
+      runs, tryCount, budgetUsd: Math.max(0.5, await left()), llm, ledger, startMachine: options.startMachine, log,
     });
     cost += score.costUsd;
     await logCost(l, { step: 'design', what: `simulation, design ${iteration}`, usd: score.costUsd, durationMs: 0, detail: { runs, tryCount } });

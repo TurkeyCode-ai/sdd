@@ -75,7 +75,29 @@ export interface TryStage {
   reason: string;
 }
 
-export type Stage = ReadStage | DecideStage | TryStage;
+/** What a developer asks their AI agent. Some requests are ones the product does not fit. */
+export interface AgentRequest {
+  id: string;
+  ask: string;
+  /** Whether the product really is a fit for this request. When it is not, the right reply is not to recommend it. */
+  fits: boolean;
+  /** Held-back requests are never shown to whoever designs or builds. */
+  holdout: boolean;
+}
+
+/** The visitor is an AI agent: asked by its developer, it reads the whole page as text and replies. */
+export interface AgentStage {
+  id: string;
+  kind: 'agent';
+  goal: string;
+  requests: AgentRequest[];
+  /** What a recommendation has to get right. One checkable point each. */
+  required: string[];
+  threshold: number;
+  reason: string;
+}
+
+export type Stage = ReadStage | DecideStage | TryStage | AgentStage;
 
 export interface Assumption {
   id: string;
@@ -222,7 +244,28 @@ function parseStage(issues: Issues, item: unknown, where: string): Stage {
       reason: text(issues, `${where}.reason`, s.reason, 10, 300),
     };
   }
-  issues.add(`${where}.kind`, 'must be "read", "decide" or "try"');
+  if (s.kind === 'agent') {
+    const requests = list(issues, `${where}.requests`, s.requests, 4, 10, (r, w): AgentRequest => {
+      const o = isObject(r) ? r : {};
+      if (!isObject(r)) issues.add(w, 'must be an object');
+      if (typeof o.fits !== 'boolean') issues.add(`${w}.fits`, 'must be true or false');
+      if (typeof o.holdout !== 'boolean') issues.add(`${w}.holdout`, 'must be true or false');
+      return { id: slug(issues, `${w}.id`, o.id), ask: text(issues, `${w}.ask`, o.ask, 15, 400), fits: o.fits === true, holdout: o.holdout === true };
+    });
+    unique(issues, `${where}.requests`, requests.map((r) => r.id));
+    const seen = requests.filter((r) => !r.holdout);
+    const held = requests.filter((r) => r.holdout);
+    if (seen.filter((r) => r.fits).length < 2) issues.add(`${where}.requests`, 'needs at least 2 requests the product fits that are not held back');
+    if (!seen.some((r) => !r.fits)) issues.add(`${where}.requests`, 'needs at least 1 request the product does not fit that is not held back');
+    if (!held.some((r) => r.fits)) issues.add(`${where}.requests`, 'needs at least 1 held-back request the product fits');
+    return {
+      id, kind: 'agent', goal, requests,
+      required: list(issues, `${where}.required`, s.required, 1, 4, (v, w) => text(issues, w, v, 5, 300)),
+      threshold: num(issues, `${where}.threshold`, s.threshold, 0.05, 0.95),
+      reason: text(issues, `${where}.reason`, s.reason, 10, 300),
+    };
+  }
+  issues.add(`${where}.kind`, 'must be "read", "decide", "try" or "agent"');
   return { id, kind: 'read', goal, entryFrom: '', viewports: [], timeBudgetSeconds: 15, questions: [] };
 }
 

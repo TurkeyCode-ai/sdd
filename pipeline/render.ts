@@ -33,6 +33,15 @@ function stage(s: Stage, n: number): string {
     for (const a of s.success.leavesTo) lines.push(`- follows a link to an address that includes \`${a}\``);
     for (const c of s.success.clicks) lines.push(`- presses a control whose label includes "${c}"`);
     lines.push('', `**Must succeed: ${pct(s.threshold)}.** ${s.reason}`);
+  } else if (s.kind === 'agent') {
+    lines.push(`### Stage ${n}: ${s.id} (an AI agent is the visitor)`, '', s.goal, '');
+    lines.push('A developer asks their coding agent for something. The agent reads the whole page as text, with no layout, images or time limit, and replies to its developer. A judge grades the reply.', '');
+    lines.push('| The developer asks | Is the product a fit? | Shown to the designer? |', '|---|---|---|');
+    for (const r of s.requests) lines.push(`| ${r.ask} | ${r.fits ? 'yes' : 'no'} | ${r.holdout ? 'no, held back' : 'yes'} |`);
+    lines.push('', 'When the product fits, it counts if the agent recommends it, says nothing the ledger does not support, and gets these right:');
+    for (const r of s.required) lines.push(`- ${r}`);
+    lines.push('', 'When the product does not fit, it counts only if the agent does not recommend it. A page that oversells scores worse.');
+    lines.push('', `**Must succeed: ${pct(s.threshold)}.** ${s.reason}`);
   } else {
     lines.push(`### Stage ${n}: ${s.id} (trying, in a terminal)`, '', s.goal, '');
     lines.push(`- Machine: \`${s.machine.image}\``);
