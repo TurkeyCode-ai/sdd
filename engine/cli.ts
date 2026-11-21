@@ -9,6 +9,7 @@
 import { spawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import path from 'node:path';
 import { simulate, USAGE } from './simulate.ts';
 
 const HELP = `sdd: Simulation Driven Development engine
@@ -48,7 +49,7 @@ if (command === '--version' || command === '-v') {
 } else if (command === 'setup') {
   // Download the browser build this engine's own Playwright expects. Running
   // "npx playwright install" from somewhere else can fetch a different build.
-  const playwrightCli = createRequire(import.meta.url).resolve('playwright/cli.js');
+  const playwrightCli = path.join(path.dirname(createRequire(import.meta.url).resolve('playwright/package.json')), 'cli.js');
   const result = spawnSync(process.execPath, [playwrightCli, 'install', 'chromium'], { stdio: 'inherit' });
   process.exit(result.status ?? 1);
 } else if (command === 'simulate') {
