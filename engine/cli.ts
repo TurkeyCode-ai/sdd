@@ -2,16 +2,20 @@
 // The `sdd` command.
 //
 //   sdd simulate ...   run simulated visitors against a local app and write a report
+//   sdd setup          download the browser the engine drives
 //   sdd --version
 //   sdd --help
 
+import { spawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { simulate, USAGE } from './simulate.ts';
 
 const HELP = `sdd: Simulation Driven Development engine
 
   sdd simulate --workdir <dir> --target http://localhost:PORT --run <id> --budget-usd <n>
                [--entry /path] [--runs n] [--concurrency n] [--outside-requests fail|block]
+  sdd setup        download the browser the engine drives (once, after installing)
   sdd --version
 
 The work directory holds spec.yaml, personas/working/*.yaml and
@@ -22,8 +26,8 @@ is ever reached.
 Exit codes: 0 report written, 1 runs failed or the engine hit an error (the
 report says which), 2 bad arguments, 3 budget reached.
 
-Needs: Node 24 or later, Playwright's Chromium (npx playwright install chromium),
-and the claude CLI logged in.`;
+Needs: Node 24 or later, the browser from "sdd setup", and the claude CLI
+logged in.`;
 
 async function version(): Promise<string> {
   // package.json sits one level above this file in the source tree and two
@@ -41,6 +45,12 @@ const [command, ...rest] = process.argv.slice(2);
 
 if (command === '--version' || command === '-v') {
   console.log(await version());
+} else if (command === 'setup') {
+  // Download the browser build this engine's own Playwright expects. Running
+  // "npx playwright install" from somewhere else can fetch a different build.
+  const playwrightCli = createRequire(import.meta.url).resolve('playwright/cli.js');
+  const result = spawnSync(process.execPath, [playwrightCli, 'install', 'chromium'], { stdio: 'inherit' });
+  process.exit(result.status ?? 1);
 } else if (command === 'simulate') {
   // exit() and not exitCode: a browser or child process that is slow to close must not hold the command open.
   process.exit(await simulate(rest));

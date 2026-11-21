@@ -17,7 +17,7 @@ is not a prediction of what real visitors will do.
 
 ```bash
 npm install -g sdd-engine
-npx playwright install chromium
+sdd setup          # downloads the browser the engine drives, once
 ```
 
 Needs Node 24 or later, and the [Claude Code](https://claude.com/claude-code)
@@ -28,7 +28,6 @@ run is billed to whatever that CLI is logged in with.
 
 ```bash
 git clone https://github.com/TurkeyCode-ai/sdd && cd sdd
-npm install
 node examples/waitlist/app.ts &          # a stand-in app on http://127.0.0.1:4180
 
 sdd simulate --workdir examples/waitlist --target http://127.0.0.1:4180 \

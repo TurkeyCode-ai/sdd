@@ -203,7 +203,12 @@ ${working.failingAnswers.map((f) => `- [${f.question}] ${f.answer}\n  - Judge: $
     return result.budgetHit ? 3 : result.failed > 0 ? 1 : 0;
   } catch (err) {
     // Exit 1 always leaves a report, so a host never has to guess what happened.
-    const error = err instanceof Error ? err.message : String(err);
+    const raw = err instanceof Error ? err.message : String(err);
+    // Playwright's own advice ("npx playwright install") can fetch a build
+    // that does not match this engine. Point at the command that does.
+    const error = /Executable doesn't exist/.test(raw)
+      ? `The browser the engine drives is not installed. Run: sdd setup\n(${raw.split('\n')[0]})`
+      : raw;
     const empty = (set: 'working' | 'holdout') => ({ set, runs: 0, questions: [], met: false });
     const report = {
       schema: 'sdd-report/1',
