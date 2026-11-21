@@ -204,7 +204,7 @@ function parseStage(issues: Issues, item: unknown, where: string): Stage {
           ask: text(issues, `${w}.ask`, o.ask, 10, 300),
           required: list(issues, `${w}.required`, o.required, 1, 3, (v, x) => text(issues, x, v, 5, 300)),
           threshold: num(issues, `${w}.threshold`, o.threshold, 0.05, 0.95),
-          reason: text(issues, `${w}.reason`, o.reason, 10, 300),
+          reason: text(issues, `${w}.reason`, o.reason, 10, 600),
         };
       }),
     };
@@ -221,7 +221,7 @@ function parseStage(issues: Issues, item: unknown, where: string): Stage {
       success: { leavesTo, clicks },
       patienceSeconds: num(issues, `${where}.patienceSeconds`, s.patienceSeconds, 20, 300, true),
       threshold: num(issues, `${where}.threshold`, s.threshold, 0.05, 0.95),
-      reason: text(issues, `${where}.reason`, s.reason, 10, 300),
+      reason: text(issues, `${where}.reason`, s.reason, 10, 600),
     };
   }
   if (s.kind === 'try') {
@@ -241,7 +241,7 @@ function parseStage(issues: Issues, item: unknown, where: string): Stage {
       },
       timeLimitSeconds: num(issues, `${where}.timeLimitSeconds`, s.timeLimitSeconds, 30, 3600, true),
       threshold: num(issues, `${where}.threshold`, s.threshold, 0.05, 0.95),
-      reason: text(issues, `${where}.reason`, s.reason, 10, 300),
+      reason: text(issues, `${where}.reason`, s.reason, 10, 600),
     };
   }
   if (s.kind === 'agent') {
@@ -262,7 +262,7 @@ function parseStage(issues: Issues, item: unknown, where: string): Stage {
       id, kind: 'agent', goal, requests,
       required: list(issues, `${where}.required`, s.required, 1, 4, (v, w) => text(issues, w, v, 5, 300)),
       threshold: num(issues, `${where}.threshold`, s.threshold, 0.05, 0.95),
-      reason: text(issues, `${where}.reason`, s.reason, 10, 300),
+      reason: text(issues, `${where}.reason`, s.reason, 10, 600),
     };
   }
   issues.add(`${where}.kind`, 'must be "read", "decide", "try" or "agent"');
