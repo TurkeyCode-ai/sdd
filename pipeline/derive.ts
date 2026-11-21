@@ -35,7 +35,7 @@ The personas
 - Each has two or three needs and two or three objections. Write these before thinking about any page. They describe the person, not the product.
 - arrivalSaw is the only thing they saw before landing: a link title, a post, a search result.
 - readingWpm is 200 to 320. skimRate is the share of body text they skip: about 0.4 for a careful reader, 0.7 for someone in a hurry.
-- Mark exactly 2 as holdout: true (1 if you write only 5). They check that the design works for people it was not tuned for, so pick plausible people who differ in kind from the rest.
+- Mark 2 or 3 as holdout: true. They check that the design works for people it was not tuned for, and that only works if they are the same kind of people as the rest. So most held-back people are from the main audience: as likely to arrive as the ones the designer sees, differing from them in the ordinary ways (what they use, where they came from, what they doubt). At most one held-back person is an adjacent outlier. Never hold back only the unusual ones.
 
 The stages
 A result usually takes more than one step to reach. Write one stage per step, in order. Three kinds exist:

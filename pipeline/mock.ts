@@ -90,7 +90,8 @@ export async function designMock(llm: LLM, input: DesignInput): Promise<DesignOu
   const parts = [input.brief];
   if (input.previous) {
     parts.push('# The page as it stands', '', '```html', input.previous.html, '```', '', '# What happened when visitors tried it', '', input.previous.findings, '',
-      'Revise the page so that more of these visitors get there. Change what the findings point at. Keep what worked.');
+      'Revise the page so that more of these visitors get there.',
+      'Change as little as you can. For every question that already meets what it needs, keep the words that answer it exactly as they are and where they are: do not reword them, shorten them or move them further down. Change only what the findings point at for the questions that fall short. A skimmer holds only a few things, so do not win one answer by burying another.');
   } else {
     parts.push('Design the first version of the page.');
   }

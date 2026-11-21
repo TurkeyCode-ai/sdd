@@ -262,6 +262,8 @@ export interface LoopOptions {
   log?: (line: string) => void;
   /** Carry on from this earlier design instead of starting again. */
   resumeFrom?: number;
+  /** Score the resumed design again before carrying on, because the referee has changed since. */
+  rescoreFirst?: boolean;
   /** The number of the first new design when carrying on. Default: one after resumeFrom. */
   startAt?: number;
 }
@@ -334,6 +336,20 @@ export async function runDesignLoop(options: LoopOptions): Promise<LoopResult> {
   let best: LoopResult['best'] = options.resumeFrom === undefined ? undefined : await loadScored(l, options.resumeFrom);
   const first = options.resumeFrom === undefined ? 0 : (options.startAt ?? options.resumeFrom + 1);
   let stale = 0;
+  if (best && options.rescoreFirst) {
+    // The referee changed since this design was scored (new held-back people, say). Score it again so new designs are compared like for like.
+    log(`--- Design ${best.iteration}, scored again ---`);
+    const again = await scoreMock({
+      layout: l, spec, mockDir: best.dir, evidenceDir: path.join(l.evidence, 'design', `iter-${best.iteration}-rescored`),
+      runs, tryCount, budgetUsd: Math.max(0.5, approval.budgetUsd - (await designSpend(l))), llm, startMachine: options.startMachine, log,
+    });
+    await logCost(l, { step: 'design', what: `simulation, design ${best.iteration} scored again`, usd: again.costUsd, durationMs: 0, detail: { runs, tryCount } });
+    const v = mockVerdict(again);
+    const s = shortfall(again).rate;
+    await writeFile(path.join(best.dir, 'score-rescored.json'), JSON.stringify({ verdict: v, shortfall: s, ...again, tried: again.tried && { ...again.tried, result: undefined, passed: again.tried.result.passed, n: again.tried.result.n } }, null, 2) + '\n');
+    log(`  verdict: ${v}, shortfall ${s.toFixed(2)}`);
+    best = { ...best, score: again, verdict: v };
+  }
   const left = async () => approval.budgetUsd - (await designSpend(l));
   const finish = async (stop: LoopResult['stop']): Promise<LoopResult> => ({ stop, iterations, best, spentUsd: Math.round((await designSpend(l)) * 100) / 100 });
 

@@ -139,14 +139,14 @@ export async function designCommand(args: string[], deps: PipelineCliDeps & { ll
   const logError = deps.logError ?? console.error;
   let parsed;
   try {
-    parsed = parseArgs({ args, allowPositionals: true, options: { iterations: { type: 'string', default: '6' }, runs: { type: 'string', default: '4' }, try: { type: 'string', default: '5' }, from: { type: 'string' } } });
+    parsed = parseArgs({ args, allowPositionals: true, options: { iterations: { type: 'string', default: '6' }, runs: { type: 'string', default: '4' }, try: { type: 'string', default: '5' }, from: { type: 'string' }, rescore: { type: 'boolean', default: false } } });
   } catch (err) {
     logError((err as Error).message);
     return 2;
   }
   const id = parsed.positionals[0];
   if (!id) {
-    logError('Usage: sdd design <project> [--iterations 6] [--runs 4] [--try 5] [--from <design number>]');
+    logError('Usage: sdd design <project> [--iterations 6] [--runs 4] [--try 5] [--from <design number> [--rescore]]');
     return 2;
   }
   const l = layout(path.join(projectsRoot(deps.env), id));
@@ -160,7 +160,7 @@ export async function designCommand(args: string[], deps: PipelineCliDeps & { ll
     const result = await runDesignLoop({
       layout: l, spec, ledger, llm: deps.llm ?? createLLM(), log,
       maxIterations: Number(parsed.values.iterations), runs: Number(parsed.values.runs), tryCount: Number(parsed.values.try),
-      ...(resumeFrom === undefined ? {} : { resumeFrom, startAt }),
+      ...(resumeFrom === undefined ? {} : { resumeFrom, startAt, rescoreFirst: parsed.values.rescore }),
     });
     await writeFile(path.join(l.evidence, resumeFrom === undefined ? 'design-loop.json' : `design-loop-from-${resumeFrom}.json`), JSON.stringify({ ...result, best: result.best && { iteration: result.best.iteration, verdict: result.best.verdict, dir: result.best.dir } }, null, 2) + '\n');
     log('');
