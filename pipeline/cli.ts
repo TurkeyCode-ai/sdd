@@ -187,10 +187,10 @@ export async function designCommand(args: string[], deps: PipelineCliDeps & { ll
 export async function scoreCommand(args: string[], deps: PipelineCliDeps & { llm?: LLM } = {}): Promise<number> {
   const log = deps.log ?? console.log;
   const logError = deps.logError ?? console.error;
-  const usage = 'Usage: sdd score <project> --page <folder with index.html> --name <label> [--runs 4] [--try 5]';
+  const usage = 'Usage: sdd score <project> --page <folder with index.html> --name <label> [--runs 4] [--try 5] [--load-seconds n] [--only read,decide,try,agent]';
   let parsed;
   try {
-    parsed = parseArgs({ args, allowPositionals: true, options: { page: { type: 'string' }, name: { type: 'string' }, runs: { type: 'string', default: '4' }, try: { type: 'string', default: '5' } } });
+    parsed = parseArgs({ args, allowPositionals: true, options: { page: { type: 'string' }, name: { type: 'string' }, runs: { type: 'string', default: '4' }, try: { type: 'string', default: '5' }, 'load-seconds': { type: 'string' }, only: { type: 'string' } } });
   } catch (err) {
     logError((err as Error).message);
     return 2;
@@ -214,7 +214,10 @@ export async function scoreCommand(args: string[], deps: PipelineCliDeps & { llm
     const tryCount = Number(parsed.values.try);
     const evidenceDir = path.join(l.evidence, 'score', name);
     const ledger = parseLedger(JSON.parse(await readFile(l.factsFile, 'utf8')));
-    const score = await scoreMock({ layout: l, spec, mockDir: path.resolve(page), evidenceDir, runs, tryCount, budgetUsd: left, llm: deps.llm ?? createLLM(), ledger, log });
+    // For sweeping an assumption: a slower page, or only some stages.
+    const loadSeconds = parsed.values['load-seconds'] === undefined ? undefined : Number(parsed.values['load-seconds']);
+    const only = parsed.values.only?.split(',').map((x) => x.trim()) as ('read' | 'decide' | 'try' | 'agent')[] | undefined;
+    const score = await scoreMock({ layout: l, spec, mockDir: path.resolve(page), evidenceDir, runs, tryCount, budgetUsd: left, llm: deps.llm ?? createLLM(), ledger, log, loadSeconds, only });
     await logCost(l, { step: 'design', what: `simulation, page "${name}"`, usd: score.costUsd, durationMs: 0, detail: { runs, tryCount } });
     const verdict = mockVerdict(score);
     await writeFile(path.join(evidenceDir, 'score.json'), JSON.stringify({ name, page: path.resolve(page), runs, tryCount, verdict, score }, null, 2) + '\n');
