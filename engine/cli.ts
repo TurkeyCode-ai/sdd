@@ -10,7 +10,7 @@ import { spawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { approveCommand, deriveCommand, designCommand, reviseCommand, showCommand } from '../pipeline/cli.ts';
+import { approveCommand, deriveCommand, designCommand, reviseCommand, scoreCommand, showCommand } from '../pipeline/cli.ts';
 import { simulate, USAGE } from './simulate.ts';
 
 const HELP = `sdd: Simulation Driven Development engine
@@ -27,6 +27,8 @@ const HELP = `sdd: Simulation Driven Development engine
   sdd revise <project> "<what to change>"   the owner's corrections, applied by the deriver
   sdd approve <project> --budget-usd <n>    the owner approves this exact spec
   sdd design <project> [--iterations 6] [--runs 4] [--try 5]   design on mocks, score, revise
+  sdd score <project> --page <folder> --name <label>   score a page the pipeline did not design
+                   (the site as it stands, say) with the same people and checks
   sdd show [<project>]   list projects, or print one project's derived spec
 
 The work directory holds spec.yaml, personas/working/*.yaml and
@@ -73,6 +75,8 @@ if (command === '--version' || command === '-v') {
   process.exit(await approveCommand(rest));
 } else if (command === 'design') {
   process.exit(await designCommand(rest));
+} else if (command === 'score') {
+  process.exit(await scoreCommand(rest));
 } else if (command === 'show') {
   process.exit(await showCommand(rest));
 } else if (command === undefined || command === '--help' || command === '-h' || command === 'help') {

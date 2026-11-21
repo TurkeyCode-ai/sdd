@@ -7,14 +7,14 @@ import { readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { createClaudeAgent, type AgentRunner } from './agent.ts';
-import { approve } from './approve.ts';
+import { approve, requireApproval } from './approve.ts';
 import { DEFAULT_DERIVE_BUDGET_USD, derive } from './derive.ts';
-import { runDesignLoop } from './designloop.ts';
+import { designSpend, mockVerdict, runDesignLoop, scoreMock } from './designloop.ts';
 import { parseLedger } from './facts.ts';
 import { parsePipelineSpec } from './spec.ts';
 import { createLLM } from '../runner/llm/index.ts';
 import type { LLM } from '../runner/llm/types.ts';
-import { layout, projectId, projectsRoot } from './project.ts';
+import { layout, logCost, projectId, projectsRoot } from './project.ts';
 
 export const DERIVE_USAGE = 'Usage: sdd derive "<the result you want, in one sentence>" [--source <folder or address>]... [--budget-usd 5] [--project <id>]';
 
@@ -139,25 +139,30 @@ export async function designCommand(args: string[], deps: PipelineCliDeps & { ll
   const logError = deps.logError ?? console.error;
   let parsed;
   try {
-    parsed = parseArgs({ args, allowPositionals: true, options: { iterations: { type: 'string', default: '6' }, runs: { type: 'string', default: '4' }, try: { type: 'string', default: '5' } } });
+    parsed = parseArgs({ args, allowPositionals: true, options: { iterations: { type: 'string', default: '6' }, runs: { type: 'string', default: '4' }, try: { type: 'string', default: '5' }, from: { type: 'string' } } });
   } catch (err) {
     logError((err as Error).message);
     return 2;
   }
   const id = parsed.positionals[0];
   if (!id) {
-    logError('Usage: sdd design <project> [--iterations 6] [--runs 4] [--try 5]');
+    logError('Usage: sdd design <project> [--iterations 6] [--runs 4] [--try 5] [--from <design number>]');
     return 2;
   }
   const l = layout(path.join(projectsRoot(deps.env), id));
   try {
     const spec = parsePipelineSpec(JSON.parse(await readFile(l.specFile, 'utf8')));
     const ledger = parseLedger(JSON.parse(await readFile(l.factsFile, 'utf8')));
+    // --from <n>: carry on from design n. New designs are numbered after the last one already made.
+    const resumeFrom = parsed.values.from === undefined ? undefined : Number(parsed.values.from);
+    const made = (await readdir(l.design).catch(() => [] as string[])).map((d) => Number(d.match(/^iter-(\d+)$/)?.[1])).filter((n) => !Number.isNaN(n));
+    const startAt = made.length > 0 ? Math.max(...made) + 1 : 0;
     const result = await runDesignLoop({
       layout: l, spec, ledger, llm: deps.llm ?? createLLM(), log,
       maxIterations: Number(parsed.values.iterations), runs: Number(parsed.values.runs), tryCount: Number(parsed.values.try),
+      ...(resumeFrom === undefined ? {} : { resumeFrom, startAt }),
     });
-    await writeFile(path.join(l.evidence, 'design-loop.json'), JSON.stringify({ ...result, best: result.best && { iteration: result.best.iteration, verdict: result.best.verdict, dir: result.best.dir } }, null, 2) + '\n');
+    await writeFile(path.join(l.evidence, resumeFrom === undefined ? 'design-loop.json' : `design-loop-from-${resumeFrom}.json`), JSON.stringify({ ...result, best: result.best && { iteration: result.best.iteration, verdict: result.best.verdict, dir: result.best.dir } }, null, 2) + '\n');
     log('');
     log(`Stopped: ${result.stop}. Spent $${result.spentUsd.toFixed(2)} at list prices.`);
     for (const it of result.iterations) log(`  design ${it.iteration}: ${it.outcome}${it.verdict ? `, ${it.verdict}, shortfall ${it.shortfall?.toFixed(2)}` : ''}`);
@@ -165,6 +170,56 @@ export async function designCommand(args: string[], deps: PipelineCliDeps & { ll
     return 0;
   } catch (err) {
     logError(`Design failed: ${(err as Error).message}`);
+    return 1;
+  }
+}
+
+/**
+ * Score a page that the pipeline did not design, such as the site as it stands
+ * today, with the same people, questions and clean machines. The page is
+ * served from a local folder. It is a reference point and never feeds the designer.
+ */
+export async function scoreCommand(args: string[], deps: PipelineCliDeps & { llm?: LLM } = {}): Promise<number> {
+  const log = deps.log ?? console.log;
+  const logError = deps.logError ?? console.error;
+  const usage = 'Usage: sdd score <project> --page <folder with index.html> --name <label> [--runs 4] [--try 5]';
+  let parsed;
+  try {
+    parsed = parseArgs({ args, allowPositionals: true, options: { page: { type: 'string' }, name: { type: 'string' }, runs: { type: 'string', default: '4' }, try: { type: 'string', default: '5' } } });
+  } catch (err) {
+    logError((err as Error).message);
+    return 2;
+  }
+  const id = parsed.positionals[0];
+  const { page, name } = parsed.values;
+  if (!id || !page || !name || !/^[a-z0-9][a-z0-9-]*$/.test(name)) {
+    logError(usage);
+    return 2;
+  }
+  const l = layout(path.join(projectsRoot(deps.env), id));
+  try {
+    const approval = await requireApproval(l);
+    const spec = parsePipelineSpec(JSON.parse(await readFile(l.specFile, 'utf8')));
+    const left = approval.budgetUsd - (await designSpend(l));
+    if (left <= 0.5) {
+      logError('The approved budget is spent.');
+      return 3;
+    }
+    const runs = Number(parsed.values.runs);
+    const tryCount = Number(parsed.values.try);
+    const evidenceDir = path.join(l.evidence, 'score', name);
+    const score = await scoreMock({ layout: l, spec, mockDir: path.resolve(page), evidenceDir, runs, tryCount, budgetUsd: left, llm: deps.llm ?? createLLM(), log });
+    await logCost(l, { step: 'design', what: `simulation, page "${name}"`, usd: score.costUsd, durationMs: 0, detail: { runs, tryCount } });
+    const verdict = mockVerdict(score);
+    await writeFile(path.join(evidenceDir, 'score.json'), JSON.stringify({ name, page: path.resolve(page), runs, tryCount, verdict, score }, null, 2) + '\n');
+    log('');
+    log(`${name}: ${verdict}. Cost $${score.costUsd.toFixed(2)} at list prices.`);
+    for (const q of score.questions) log(`  ${q.stage}/${q.id}: seen ${q.working.passed}/${q.working.n}, held back ${q.holdout.passed}/${q.holdout.n}, needs ${Math.round(q.threshold * 100)}%`);
+    if (score.tried) log(`  ${score.tried.stage}: ${score.tried.interval.passed}/${score.tried.interval.n}, needs ${Math.round(score.tried.threshold * 100)}%`);
+    for (const n of score.notRun) log(`  ${n.stage}: not run (${n.why})`);
+    return 0;
+  } catch (err) {
+    logError(`Scoring failed: ${(err as Error).message}`);
     return 1;
   }
 }

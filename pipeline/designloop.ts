@@ -260,6 +260,10 @@ export interface LoopOptions {
   tryCount?: number;
   startMachine?: (stage: TryStage, n: number) => Promise<Machine>;
   log?: (line: string) => void;
+  /** Carry on from this earlier design instead of starting again. */
+  resumeFrom?: number;
+  /** The number of the first new design when carrying on. Default: one after resumeFrom. */
+  startAt?: number;
 }
 
 export interface IterationRecord {
@@ -281,6 +285,34 @@ export interface LoopResult {
 
 const GUARDRAIL_TRIES = 3;
 
+/**
+ * What the designer hears about the people it is not shown: which questions they
+ * fall short on, and nothing else. No rates, no words of theirs, nothing about who they are.
+ * Without this a page can keep improving for the seen people while it loses everyone else.
+ */
+export function unseenNote(score: MockScore): string {
+  const short = score.questions.filter((q) => q.holdout.n > 0 && q.holdout.rate < q.threshold);
+  if (short.length === 0) return '';
+  return [
+    '',
+    '## Visitors you are not shown',
+    '',
+    'Other kinds of visitor in this audience also came. They fell short of what is needed on:',
+    ...short.map((q) => `- ${q.ask}`),
+    '',
+    'You are not told who they are. Do not guess at them and do not aim anything at one kind of visitor. Make the page work for someone in this audience who arrives from somewhere else, knowing less or wanting something slightly different from the people you were shown.',
+    '',
+  ].join('\n');
+}
+
+/** A design scored earlier, read back so the loop can carry on from it. */
+export async function loadScored(l: ProjectLayout, iteration: number): Promise<NonNullable<LoopResult['best']>> {
+  const dir = path.join(l.design, `iter-${iteration}`);
+  const saved = JSON.parse(await readFile(path.join(dir, 'score.json'), 'utf8')) as MockScore & { verdict: MockVerdict };
+  await readFile(path.join(dir, 'index.html'), 'utf8');
+  return { iteration, score: saved, verdict: saved.verdict, dir };
+}
+
 /** What step 4 has spent so far, from the log. The log is the only source. */
 export async function designSpend(l: ProjectLayout): Promise<number> {
   return (await readCosts(l)).filter((c) => c.step === 'design').reduce((s, c) => s + c.usd, 0);
@@ -298,12 +330,14 @@ export async function runDesignLoop(options: LoopOptions): Promise<LoopResult> {
   await writeFile(path.join(l.brief, 'brief.md'), brief);
 
   const iterations: IterationRecord[] = [];
-  let best: LoopResult['best'];
+  // Carrying on from an earlier design: it is the one to beat, and new designs are numbered after the last one made.
+  let best: LoopResult['best'] = options.resumeFrom === undefined ? undefined : await loadScored(l, options.resumeFrom);
+  const first = options.resumeFrom === undefined ? 0 : (options.startAt ?? options.resumeFrom + 1);
   let stale = 0;
   const left = async () => approval.budgetUsd - (await designSpend(l));
   const finish = async (stop: LoopResult['stop']): Promise<LoopResult> => ({ stop, iterations, best, spentUsd: Math.round((await designSpend(l)) * 100) / 100 });
 
-  for (let iteration = 0; iteration < maxIterations; iteration++) {
+  for (let iteration = first; iteration < first + maxIterations; iteration++) {
     if (best?.verdict === 'pass') return finish('pass');
     if ((await left()) <= 0.5) return finish('budget');
     if (stale >= 2) return finish('plateau');
@@ -319,7 +353,7 @@ export async function runDesignLoop(options: LoopOptions): Promise<LoopResult> {
     let notes = '';
     let rejected: string[] | undefined;
     for (let attempt = 1; attempt <= GUARDRAIL_TRIES && !html; attempt++) {
-      const previous = best ? { html: await readFile(path.join(best.dir, 'index.html'), 'utf8'), findings: best.score.findings + (workingMet(best.score) ? '\nEvery threshold is met for these visitors, but other visitors you are not shown did not get there. Make the page clearer for someone who arrives knowing less or wanting something slightly different. Do not aim anything at one kind of visitor.\n' : '') } : undefined;
+      const previous = best ? { html: await readFile(path.join(best.dir, 'index.html'), 'utf8'), findings: best.score.findings + unseenNote(best.score) } : undefined;
       const design = await designMock(llm, { brief, iteration, previous, rejected });
       cost += design.costUsd;
       await logCost(l, { step: 'design', what: `designer, design ${iteration} attempt ${attempt}`, usd: design.costUsd, durationMs: 0 });
