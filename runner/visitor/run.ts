@@ -94,6 +94,7 @@ export async function runVisitor(options: VisitorRunOptions): Promise<Trace> {
   let outcome: Trace['outcome'] | undefined;
   let outcomeNote = '';
   let requestSeen = false;
+  let pressedWanted = '';
   let believedDone = false;
   let finalScreen = { url: '', title: '', text: [] as string[] };
   let pageHash = '';
@@ -118,6 +119,7 @@ export async function runVisitor(options: VisitorRunOptions): Promise<Trace> {
 
     const completed = async (p: Page): Promise<boolean> => {
       if (success.request && requestSeen) return true;
+      if (pressedWanted) return true;
       if (success.url_includes && new URL(p.url()).pathname.includes(success.url_includes)) return true;
       if (success.text_visible && (await p.getByText(success.text_visible, { exact: false }).first().isVisible().catch(() => false))) return true;
       return false;
@@ -207,8 +209,15 @@ export async function runVisitor(options: VisitorRunOptions): Promise<Trace> {
       } else if (element!.kind === 'link' && element!.goesTo === 'outside') {
         // Leaving for another site ends the visit. The request is never made.
         record(a.action, a.cites, a.reason, 'left for another site', { element: element!.n });
-        outcome = 'left';
-        outcomeNote = `followed a link off the site: "${element!.label}"`;
+        // Some pages exist to send people somewhere. Then leaving for that place is the goal.
+        const wanted = (success.leaves_to ?? []).find((part) => (element!.href ?? '').toLowerCase().includes(part.toLowerCase()));
+        if (wanted) {
+          outcome = 'completed';
+          outcomeNote = `followed the link the page is for: "${element!.label}"`;
+        } else {
+          outcome = 'left';
+          outcomeNote = `followed a link off the site: "${element!.label}"`;
+        }
         break;
       } else if (rng() < missChance(element!, missRate)) {
         t += CLICK_SECONDS;
@@ -225,6 +234,8 @@ export async function runVisitor(options: VisitorRunOptions): Promise<Trace> {
         const moved = page.url() !== urlBefore;
         if (moved) t += LOAD_SECONDS;
         result = moved ? `went to ${new URL(page.url()).pathname}` : 'clicked, stayed on the same page';
+        const label = element!.label.toLowerCase();
+        if ((success.clicks ?? []).some((part) => label.includes(part.toLowerCase()))) pressedWanted = element!.label;
       }
 
       record(a.action, a.cites, a.reason, result, { element: element?.n, typed: a.action === 'type' ? a.text : undefined });

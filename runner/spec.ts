@@ -28,6 +28,14 @@ export interface Spec {
       request?: { method?: string; path_includes: string };
       url_includes?: string;
       text_visible?: string;
+      /**
+       * The visitor follows a link off the site whose address includes one of
+       * these, such as "github.com/acme". For pages whose goal is to send people
+       * somewhere: a repository, a package, a store. The request is never made.
+       */
+      leaves_to?: string[];
+      /** The visitor presses a button or link whose label includes one of these, such as "Copy". Case does not matter. */
+      clicks?: string[];
       /** What the final screen should show, in prose. Checked by the outcome judge, for tasks with no mechanical check. */
       outcome?: string;
       /** Kind "conversation": the product must have run a tool whose name includes this. */
@@ -67,7 +75,14 @@ export async function loadSpec(file: string): Promise<Spec> {
   if (spec.kind === 'task') {
     if (!spec.task?.goal || !spec.task.success) throw new Error(`${file}: a task spec needs task.goal and task.success`);
     const s = spec.task.success;
-    if (!s.request?.path_includes && !s.url_includes && !s.text_visible && !s.outcome) throw new Error(`${file}: task.success needs request, url_includes, text_visible, or outcome`);
+    for (const key of ['leaves_to', 'clicks'] as const) {
+      if (s[key] !== undefined && !(Array.isArray(s[key]) && s[key].length > 0 && s[key].every((v) => typeof v === 'string' && v.trim().length > 0))) {
+        throw new Error(`${file}: task.success.${key} must be a list of text`);
+      }
+    }
+    if (!s.request?.path_includes && !s.url_includes && !s.text_visible && !s.outcome && !s.leaves_to && !s.clicks) {
+      throw new Error(`${file}: task.success needs request, url_includes, text_visible, leaves_to, clicks, or outcome`);
+    }
     if (!(spec.visitor && spec.visitor.patience_seconds > 0)) throw new Error(`${file}: a task spec needs visitor.patience_seconds`);
     // One synthetic question, so thresholds (pass.task_rate), scoring, and reports work unchanged.
     spec.questions = [{ id: 'task', ask: spec.task.goal, rubric: { required: [`the visitor completed: ${spec.task.goal}`] } }];
@@ -77,7 +92,7 @@ export async function loadSpec(file: string): Promise<Spec> {
     if (!spec.task?.goal || !spec.task.success) throw new Error(`${file}: a conversation spec needs task.goal and task.success`);
     const s = spec.task.success;
     if (!s.tool_called && !s.outcome) throw new Error(`${file}: task.success needs tool_called, outcome, or both`);
-    if (s.request || s.url_includes || s.text_visible) throw new Error(`${file}: a conversation has no screen, so task.success takes only tool_called and outcome`);
+    if (s.request || s.url_includes || s.text_visible || s.leaves_to || s.clicks) throw new Error(`${file}: a conversation has no screen, so task.success takes only tool_called and outcome`);
     if (!(spec.talker && spec.talker.patience_seconds > 0 && spec.talker.adapter)) throw new Error(`${file}: a conversation spec needs talker.patience_seconds and talker.adapter`);
     spec.questions = [{ id: 'task', ask: spec.task.goal, rubric: { required: [`the person got: ${spec.task.goal}`] } }];
     spec.reader ??= { time_budget_seconds: spec.talker.patience_seconds, answers_from: 'what_was_heard', may_scroll_back: false };

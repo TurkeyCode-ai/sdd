@@ -289,3 +289,37 @@ test('"done" is not available to a visitor nobody asked to do anything', async (
   assert.match(llm.requests[1]!.prompt, /"done" is not an option/);
   assert.equal(trace.outcome, 'left');
 });
+
+// ---- Pages whose goal is to send people somewhere, or to get a button pressed ----
+
+test('leaving for the place the page is for counts as done, and the request is still never made', async () => {
+  const sendsAway = { ...spec, task: { goal: 'Go to the press page', success: { leaves_to: ['example.com/press'] } } } as Spec;
+  const follows = scripted((labels) => ({ action: 'click', element: labels.get('Read the press coverage'), cites: 'Read the press coverage', reason: 'wants proof' }));
+  const trace = await run(follows, { spec: sendsAway });
+  assert.equal(trace.outcome, 'completed');
+  assert.equal(sandbox.violations.length, 0, 'no outside request was attempted');
+
+  // Any other outside link is still just leaving.
+  const elsewhere = { ...spec, task: { goal: 'Go to the docs', success: { leaves_to: ['docs.example.org'] } } } as Spec;
+  assert.equal((await run(follows, { spec: elsewhere })).outcome, 'left');
+});
+
+test('pressing a named control counts as done, whatever its case, and other controls do not', async () => {
+  const wantsClick = { ...spec, task: { goal: 'Start signing up', success: { clicks: ['get on the WAITLIST'] } } } as Spec;
+  const presses = scripted((labels) => ({ action: 'click', element: labels.get('Get on the waitlist'), cites: 'Get on the waitlist', reason: 'wants one' }));
+  assert.equal((await run(presses, { spec: wantsClick })).outcome, 'completed');
+
+  let calls = 0;
+  const pressesOther = scripted((labels) => (++calls > 1 ? { action: 'leave', cites: '', reason: 'done looking' } : { action: 'click', element: labels.get('fine print'), cites: 'fine print', reason: 'curious' }));
+  assert.equal((await run(pressesOther, { spec: wantsClick })).outcome, 'left');
+});
+
+test('the visitor is never shown where an outside link goes or what the engine is waiting for', async () => {
+  const sendsAway = { ...spec, task: { goal: 'Go to the press page', success: { leaves_to: ['example.com/press'], clicks: ['waitlist-secret-label'] } } } as Spec;
+  const leaves = scripted(() => ({ action: 'leave', cites: '', reason: 'not for me' }));
+  await run(leaves, { spec: sendsAway });
+  const shown = leaves.requests.map((r) => r.system + '\n' + r.prompt).join('\n');
+  assert.ok(!shown.includes('example.com/press'));
+  assert.ok(!shown.includes('waitlist-secret-label'));
+  assert.ok(!shown.includes('leaves_to'));
+});

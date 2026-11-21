@@ -96,6 +96,8 @@ task:
     request: { method: POST, path_includes: /api/waitlist }
     url_includes: /thanks
     text_visible: You are on the list
+    leaves_to: [github.com/acme/widget]   # follows an outside link to here; the request is never made
+    clicks: [Copy]                         # presses a control whose label includes this
     outcome: A confirmation that the visitor is on the list   # judged from the final screen
 visitor:
   patience_seconds: 75

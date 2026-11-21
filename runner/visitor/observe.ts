@@ -14,6 +14,8 @@ export interface ScreenElement {
   value?: string;
   /** For links: where it goes. "outside" when it leaves the app. */
   goesTo?: 'same page' | 'another page' | 'outside';
+  /** For links that leave the app: the address. The engine checks it; the visitor is not shown it. */
+  href?: string;
   width: number;
   height: number;
 }
@@ -108,6 +110,7 @@ export async function observe(page: Page): Promise<Observation> {
         try {
           const url = new URL(href, location.href);
           item.goesTo = url.origin !== location.origin ? 'outside' : url.pathname === location.pathname ? 'same page' : 'another page';
+          if (item.goesTo === 'outside') item.href = url.href;
         } catch {
           item.goesTo = 'same page';
         }
