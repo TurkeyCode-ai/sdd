@@ -10,7 +10,7 @@ import { spawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { approveCommand, deriveCommand, reviseCommand, showCommand } from '../pipeline/cli.ts';
+import { approveCommand, deriveCommand, designCommand, reviseCommand, showCommand } from '../pipeline/cli.ts';
 import { simulate, USAGE } from './simulate.ts';
 
 const HELP = `sdd: Simulation Driven Development engine
@@ -26,6 +26,7 @@ const HELP = `sdd: Simulation Driven Development engine
                    ledger of true claims. Nothing is simulated or built.
   sdd revise <project> "<what to change>"   the owner's corrections, applied by the deriver
   sdd approve <project> --budget-usd <n>    the owner approves this exact spec
+  sdd design <project> [--iterations 6] [--runs 4] [--try 5]   design on mocks, score, revise
   sdd show [<project>]   list projects, or print one project's derived spec
 
 The work directory holds spec.yaml, personas/working/*.yaml and
@@ -70,6 +71,8 @@ if (command === '--version' || command === '-v') {
   process.exit(await reviseCommand(rest));
 } else if (command === 'approve') {
   process.exit(await approveCommand(rest));
+} else if (command === 'design') {
+  process.exit(await designCommand(rest));
 } else if (command === 'show') {
   process.exit(await showCommand(rest));
 } else if (command === undefined || command === '--help' || command === '-h' || command === 'help') {

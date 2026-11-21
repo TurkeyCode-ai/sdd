@@ -3,12 +3,17 @@
 //   sdd derive "<result>" [--source <folder or address>]... [--budget-usd 5] [--project <id>]
 //   sdd show [<project>]
 
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { createClaudeAgent, type AgentRunner } from './agent.ts';
 import { approve } from './approve.ts';
 import { DEFAULT_DERIVE_BUDGET_USD, derive } from './derive.ts';
+import { runDesignLoop } from './designloop.ts';
+import { parseLedger } from './facts.ts';
+import { parsePipelineSpec } from './spec.ts';
+import { createLLM } from '../runner/llm/index.ts';
+import type { LLM } from '../runner/llm/types.ts';
 import { layout, projectId, projectsRoot } from './project.ts';
 
 export const DERIVE_USAGE = 'Usage: sdd derive "<the result you want, in one sentence>" [--source <folder or address>]... [--budget-usd 5] [--project <id>]';
@@ -124,6 +129,42 @@ export async function approveCommand(args: string[], deps: PipelineCliDeps = {})
     return 0;
   } catch (err) {
     logError((err as Error).message);
+    return 1;
+  }
+}
+
+/** sdd design <project> [--iterations 6] [--runs 4] [--try 5] */
+export async function designCommand(args: string[], deps: PipelineCliDeps & { llm?: LLM } = {}): Promise<number> {
+  const log = deps.log ?? console.log;
+  const logError = deps.logError ?? console.error;
+  let parsed;
+  try {
+    parsed = parseArgs({ args, allowPositionals: true, options: { iterations: { type: 'string', default: '6' }, runs: { type: 'string', default: '4' }, try: { type: 'string', default: '5' } } });
+  } catch (err) {
+    logError((err as Error).message);
+    return 2;
+  }
+  const id = parsed.positionals[0];
+  if (!id) {
+    logError('Usage: sdd design <project> [--iterations 6] [--runs 4] [--try 5]');
+    return 2;
+  }
+  const l = layout(path.join(projectsRoot(deps.env), id));
+  try {
+    const spec = parsePipelineSpec(JSON.parse(await readFile(l.specFile, 'utf8')));
+    const ledger = parseLedger(JSON.parse(await readFile(l.factsFile, 'utf8')));
+    const result = await runDesignLoop({
+      layout: l, spec, ledger, llm: deps.llm ?? createLLM(), log,
+      maxIterations: Number(parsed.values.iterations), runs: Number(parsed.values.runs), tryCount: Number(parsed.values.try),
+    });
+    await writeFile(path.join(l.evidence, 'design-loop.json'), JSON.stringify({ ...result, best: result.best && { iteration: result.best.iteration, verdict: result.best.verdict, dir: result.best.dir } }, null, 2) + '\n');
+    log('');
+    log(`Stopped: ${result.stop}. Spent $${result.spentUsd.toFixed(2)} at list prices.`);
+    for (const it of result.iterations) log(`  design ${it.iteration}: ${it.outcome}${it.verdict ? `, ${it.verdict}, shortfall ${it.shortfall?.toFixed(2)}` : ''}`);
+    if (result.best) log(`Best: design ${result.best.iteration} (${result.best.verdict}) at ${result.best.dir}`);
+    return 0;
+  } catch (err) {
+    logError(`Design failed: ${(err as Error).message}`);
     return 1;
   }
 }
