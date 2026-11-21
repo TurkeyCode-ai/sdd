@@ -52,21 +52,17 @@ function run(cmd: string, args: string[], timeoutMs: number): Promise<{ code: nu
 export const imageOf = (stage: TryStage): string => stage.machine.image.trim().split(/[\s(,]/)[0]!;
 
 /**
- * A fresh container: the image's ordinary non-root user, an npm global folder
- * in that user's home, no terminal attached, no environment beyond the image's own.
+ * A fresh container, exactly as the image ships: its ordinary non-root user,
+ * no terminal attached, no environment beyond the image's own. Nothing is set
+ * up for the developer, so a global npm install fails here as it does for real.
  */
 export async function startContainer(stage: TryStage, name: string): Promise<Machine> {
   const image = imageOf(stage);
   const started = await run('docker', [
     'run', '-d', '--rm', '--name', name, '--user', 'node', '-w', '/home/node',
-    '-e', 'NPM_CONFIG_PREFIX=/home/node/.npm-global',
-    '-e', 'PATH=/home/node/.npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
     image, 'sleep', '3600',
   ], 120_000);
   if (started.code !== 0) throw new Error(`Could not start a clean ${image} machine: ${started.out.slice(0, 300)}`);
-  // The npm global folder has to exist, as it does on a real machine set up this way. Without it npx itself fails.
-  const prepared = await run('docker', ['exec', name, 'mkdir', '-p', '/home/node/.npm-global/lib', '/home/node/.npm-global/bin'], 60_000);
-  if (prepared.code !== 0) throw new Error(`Could not prepare the clean machine: ${prepared.out.slice(0, 300)}`);
   return {
     async exec(command, timeoutSeconds) {
       const t0 = Date.now();
