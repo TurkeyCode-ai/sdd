@@ -11,7 +11,7 @@ import { devices } from 'playwright';
 import { closeServer, listen } from './server.ts';
 import { isAllowedUrl, SandboxViolationError, startSandbox, type Sandbox } from './sandbox.ts';
 
-const siteDir = path.resolve(import.meta.dirname, '..', '..', 'site');
+const siteDir = path.resolve(import.meta.dirname, '..', '..', 'test/fixtures/sdd-site/site');
 
 // A second server on loopback that is NOT the sandbox origin. Loopback
 // traffic skips the proxy, so only the route guard stands in front of it.
