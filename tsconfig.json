@@ -11,5 +11,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["runner", "judge", "scorer", "loop", "engine", "scripts"]
+  "include": ["runner", "judge", "scorer", "loop", "engine", "scripts", "pipeline"]
 }

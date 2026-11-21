@@ -26,7 +26,7 @@
     "postbuild": "node -e \"import('node:fs').then(fs => fs.chmodSync('dist/engine/cli.js', 0o755))\"",
     "prepublishOnly": "npm run typecheck && npm test && npm run build",
     "typecheck": "tsc --noEmit",
-    "test": "node --test \"engine/**/*.test.ts\" \"runner/**/*.test.ts\" \"judge/**/*.test.ts\" \"scorer/**/*.test.ts\" \"loop/**/*.test.ts\"",
+    "test": "node --test \"engine/**/*.test.ts\" \"pipeline/**/*.test.ts\" \"runner/**/*.test.ts\" \"judge/**/*.test.ts\" \"scorer/**/*.test.ts\" \"loop/**/*.test.ts\"",
     "sdd": "node engine/cli.ts",
     "simulate": "node engine/cli.ts simulate",
     "example:waitlist": "node examples/waitlist/app.ts",

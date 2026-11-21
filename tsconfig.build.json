@@ -8,6 +8,6 @@
     "declaration": false,
     "sourceMap": false
   },
-  "include": ["engine", "runner", "judge", "scorer"],
+  "include": ["engine", "runner", "judge", "scorer", "pipeline"],
   "exclude": ["**/*.test.ts"]
 }

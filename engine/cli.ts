@@ -10,6 +10,7 @@ import { spawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { deriveCommand, showCommand } from '../pipeline/cli.ts';
 import { simulate, USAGE } from './simulate.ts';
 
 const HELP = `sdd: Simulation Driven Development engine
@@ -18,6 +19,12 @@ const HELP = `sdd: Simulation Driven Development engine
                [--entry /path] [--runs n] [--concurrency n] [--outside-requests fail|block]
   sdd setup        download the browser the engine drives (once, after installing)
   sdd --version
+
+  sdd derive "<the result you want>" [--source <folder or address>]... [--budget-usd 5]
+                   turn one sentence into a spec: who it is for, what counts as
+                   success, thresholds, held-back people, assumptions, and a
+                   ledger of true claims. Nothing is simulated or built.
+  sdd show [<project>]   list projects, or print one project's derived spec
 
 The work directory holds spec.yaml, personas/working/*.yaml and
 personas/holdout/*.yaml. The report is written to <workdir>/reports/<run>.json
@@ -55,6 +62,10 @@ if (command === '--version' || command === '-v') {
 } else if (command === 'simulate') {
   // exit() and not exitCode: a browser or child process that is slow to close must not hold the command open.
   process.exit(await simulate(rest));
+} else if (command === 'derive') {
+  process.exit(await deriveCommand(rest));
+} else if (command === 'show') {
+  process.exit(await showCommand(rest));
 } else if (command === undefined || command === '--help' || command === '-h' || command === 'help') {
   console.log(HELP);
 } else {
