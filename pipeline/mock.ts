@@ -148,8 +148,9 @@ export function mechanicalProblems(html: string, allowed: string[]): string[] {
   for (const m of html.matchAll(/<a\b[^>]*\bhref=["']([^"']+)["']/gi)) {
     const href = m[1]!;
     if (href.startsWith('#') || href.startsWith('/') || href.startsWith('mailto:')) continue;
-    const bare = href.replace(/^https?:\/\//, '');
-    if (!allowed.some((a) => bare.startsWith(a) || a.startsWith(bare.replace(/\/$/, '')))) problems.push(`The page links to ${href}, which is not an address from the brief.`);
+    // Compared the way the engine counts a followed link: the address includes the allowed one. "www." is not a different place.
+    const bare = href.replace(/^https?:\/\//, '').replace(/^www\./, '').toLowerCase();
+    if (!allowed.some((a) => bare.includes(a.replace(/^www\./, '').toLowerCase()))) problems.push(`The page links to ${href}, which is not an address from the brief.`);
   }
   return [...new Set(problems)];
 }

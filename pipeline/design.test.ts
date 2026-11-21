@@ -81,6 +81,9 @@ test('a clean page passes the checks done by code', () => {
   const links = allowedLinks(spec, ledger);
   assert.ok(links.includes('github.com/acme/widget'));
   assert.deepEqual(mechanicalProblems(page('<h1>Widget</h1><a href="https://github.com/acme/widget">GitHub</a><a href="#start">Start</a>'), links), []);
+  // The same place with "www." or a path after it is still the same place.
+  assert.deepEqual(mechanicalProblems(page('<a href="https://www.github.com/acme/widget#readme">GitHub</a>'), links), []);
+  assert.equal(mechanicalProblems(page('<a href="https://github.com/acme/other">Other</a>'), links).length, 1);
 });
 
 test('em dashes, outside files and links to anywhere else are each caught', () => {

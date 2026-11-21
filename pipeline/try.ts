@@ -64,6 +64,9 @@ export async function startContainer(stage: TryStage, name: string): Promise<Mac
     image, 'sleep', '3600',
   ], 120_000);
   if (started.code !== 0) throw new Error(`Could not start a clean ${image} machine: ${started.out.slice(0, 300)}`);
+  // The npm global folder has to exist, as it does on a real machine set up this way. Without it npx itself fails.
+  const prepared = await run('docker', ['exec', name, 'mkdir', '-p', '/home/node/.npm-global/lib', '/home/node/.npm-global/bin'], 60_000);
+  if (prepared.code !== 0) throw new Error(`Could not prepare the clean machine: ${prepared.out.slice(0, 300)}`);
   return {
     async exec(command, timeoutSeconds) {
       const t0 = Date.now();
