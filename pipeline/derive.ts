@@ -106,17 +106,28 @@ const FACTS_SHAPE = `{
   "notTrue": [ { "claim": "...", "why": "..." } ]
 }`;
 
-export function buildDerivePrompt(input: { result: string; sources: string[]; problems?: string }): string {
+export function buildDerivePrompt(input: { result: string; sources: string[]; problems?: string; corrections?: string }): string {
   const sources = input.sources.length > 0
     ? input.sources.map((s) => `- ${s}`).join('\n')
     : '- None were given. Work out what the sentence refers to and look it up.';
   const retry = input.problems
     ? `\n## Your drafts were checked and are not usable yet\n\nBoth files are still in the current directory. Fix these and write the whole of each file again:\n\n${input.problems}\n`
     : '';
+  const corrections = input.corrections
+    ? `
+## The owner read your spec and corrected it
+
+Your earlier drafts are in the current directory. Keep everything the owner did not mention. Apply every correction below, check anything they call into question against the sources, and write the whole of each file again. The owner decides what the result means. They do not get to make a false statement true: if a correction asks the ledger to say something the sources do not support, leave it out and say so in openQuestions.
+
+<<<CORRECTIONS
+${input.corrections}
+CORRECTIONS>>>
+`
+    : '';
   return `# Derive a spec from a result
 
 ${METHOD}
-
+${corrections}
 ## Where to look
 
 ${sources}
@@ -163,6 +174,8 @@ export interface DeriveOptions {
   budgetUsd?: number;
   agent: AgentRunner;
   log?: (line: string) => void;
+  /** The owner's corrections to a spec this project already has. The deriver revises; nobody else may. */
+  corrections?: string;
 }
 
 export interface DeriveOutcome {
@@ -235,6 +248,17 @@ export async function derive(options: DeriveOptions): Promise<DeriveOutcome> {
 
   const l = await createProject(options.projectRoot);
   const scratch = await freshScratch(l, 'derive');
+  const corrections = options.corrections?.trim() || undefined;
+  if (!corrections) await writeFile(path.join(l.evidence, 'sources.json'), JSON.stringify(options.sources, null, 2) + '\n');
+  if (corrections) {
+    // A revision starts from what was derived before. spec.yaml already holds the personas.
+    const previous = await Promise.all([readFile(l.specFile, 'utf8'), readFile(l.factsFile, 'utf8')]).catch(() => null);
+    if (!previous) throw new Error('There is no derived spec in this project to revise. Run sdd derive first.');
+    await writeFile(path.join(scratch, SPEC_DRAFT), previous[0]);
+    await writeFile(path.join(scratch, FACTS_DRAFT), previous[1]);
+    // Any approval was of the old spec.
+    await rm(path.join(l.referee, 'approval.json'), { force: true });
+  }
   const sourceDirs = options.sources.filter((s) => path.isAbsolute(s));
 
   let spent = 0;
@@ -246,21 +270,22 @@ export async function derive(options: DeriveOptions): Promise<DeriveOutcome> {
     log(attempt === 1 ? 'The deriver is reading the sources and measuring...' : 'The deriver is fixing its drafts...');
     const run = await options.agent.run({
       name: 'deriver',
-      prompt: buildDerivePrompt({ result, sources: options.sources, problems }),
+      prompt: buildDerivePrompt({ result, sources: options.sources, problems, corrections }),
       cwd: scratch,
       addDirs: sourceDirs,
       tools: DERIVER_TOOLS,
       budgetUsd: left,
     });
     spent += run.costUsd;
-    await logCost(l, { step: 'derive', what: `deriver attempt ${attempt}`, usd: run.costUsd, durationMs: run.durationMs, detail: { turns: run.turns, ok: run.ok, error: run.error } });
+    await logCost(l, { step: corrections ? 'revise' : 'derive', what: `deriver attempt ${attempt}`, usd: run.costUsd, durationMs: run.durationMs, detail: { turns: run.turns, ok: run.ok, error: run.error } });
     log(`  attempt ${attempt}: $${run.costUsd.toFixed(2)}${run.ok ? '' : `, ${run.error}`}`);
 
     const checked = await checkDrafts(scratch, result, sourceDirs);
     if (checked.spec && checked.ledger) {
       await writeDerived(l, checked.spec, checked.ledger);
       await writeFile(l.derivedSpec, renderDerivedSpec(checked.spec, checked.ledger, { costUsd: spent, sources: options.sources }));
-      await writeFile(path.join(l.evidence, 'derive-notes.md'), run.text.trim() + '\n');
+      await writeFile(path.join(l.evidence, corrections ? 'revise-notes.md' : 'derive-notes.md'), run.text.trim() + '\n');
+      if (corrections) await writeFile(path.join(l.evidence, 'owner-corrections.md'), corrections + '\n', { flag: 'a' });
       return { layout: l, spec: checked.spec, ledger: checked.ledger, costUsd: spent, attempts: attempt };
     }
     problems = checked.problems.join('\n');

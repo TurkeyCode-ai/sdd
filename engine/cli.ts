@@ -10,7 +10,7 @@ import { spawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { deriveCommand, showCommand } from '../pipeline/cli.ts';
+import { approveCommand, deriveCommand, reviseCommand, showCommand } from '../pipeline/cli.ts';
 import { simulate, USAGE } from './simulate.ts';
 
 const HELP = `sdd: Simulation Driven Development engine
@@ -24,6 +24,8 @@ const HELP = `sdd: Simulation Driven Development engine
                    turn one sentence into a spec: who it is for, what counts as
                    success, thresholds, held-back people, assumptions, and a
                    ledger of true claims. Nothing is simulated or built.
+  sdd revise <project> "<what to change>"   the owner's corrections, applied by the deriver
+  sdd approve <project> --budget-usd <n>    the owner approves this exact spec
   sdd show [<project>]   list projects, or print one project's derived spec
 
 The work directory holds spec.yaml, personas/working/*.yaml and
@@ -64,6 +66,10 @@ if (command === '--version' || command === '-v') {
   process.exit(await simulate(rest));
 } else if (command === 'derive') {
   process.exit(await deriveCommand(rest));
+} else if (command === 'revise') {
+  process.exit(await reviseCommand(rest));
+} else if (command === 'approve') {
+  process.exit(await approveCommand(rest));
 } else if (command === 'show') {
   process.exit(await showCommand(rest));
 } else if (command === undefined || command === '--help' || command === '-h' || command === 'help') {

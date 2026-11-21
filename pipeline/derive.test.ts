@@ -7,6 +7,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { agentArgs, parseAgentOutput, type AgentRunOptions, type AgentRunner } from './agent.ts';
+import { approve, approvalState, requireApproval } from './approve.ts';
 import { deriveCommand, showCommand } from './cli.ts';
 import { buildDerivePrompt, derive, DERIVER_TOOLS, FACTS_DRAFT, SPEC_DRAFT } from './derive.ts';
 import { checkCitations, parseLedger } from './facts.ts';
@@ -316,4 +317,64 @@ test('the CLI output of an agent session is read for cost and failure', () => {
   assert.equal(capped.costUsd, 5, 'what was spent before the cap is still counted');
   assert.match(capped.error!, /error_max_budget_usd/);
   assert.equal(parseAgentOutput('not json', 1, 'boom').ok, false);
+});
+
+// ---- Revising and approving ----
+
+test('the owner\'s corrections go to the deriver with its earlier drafts, and nobody else rewrites the spec', async () => {
+  const root = projectRoot();
+  await derive({ result: RESULT, sources: [source], projectRoot: root, agent: scripted([{ spec: goodSpec(), facts: goodFacts() }]) });
+
+  const revised = goodSpec();
+  (revised.stages[1] as any).success = { leavesTo: ['npmjs.com/package/plantminder'], clicks: [] };
+  const agent: AgentRunner & { calls: AgentRunOptions[]; seen?: string } = {
+    calls: [],
+    async run(options) {
+      this.calls.push(options);
+      this.seen = await readFile(path.join(options.cwd, SPEC_DRAFT), 'utf8');
+      await writeFile(path.join(options.cwd, SPEC_DRAFT), JSON.stringify(revised));
+      return { ok: true, text: 'Narrowed the decide stage.', costUsd: 0.3, durationMs: 5 };
+    },
+  };
+  await derive({ result: RESULT, sources: [source], projectRoot: root, agent, corrections: 'Only the npm link counts for deciding.' });
+
+  assert.ok(agent.seen!.includes('"Copy"'), 'the deriver starts from its earlier draft');
+  assert.ok(agent.calls[0]!.prompt.includes('<<<CORRECTIONS\nOnly the npm link counts for deciding.\nCORRECTIONS>>>'));
+  assert.ok(agent.calls[0]!.prompt.includes('They do not get to make a false statement true'));
+  const l = layout(root);
+  assert.deepEqual(JSON.parse(await readFile(l.specFile, 'utf8')).stages[1].success.clicks, []);
+  assert.deepEqual((await readCosts(l)).map((c) => c.step), ['derive', 'revise']);
+});
+
+test('revising needs a spec to revise', async () => {
+  await assert.rejects(
+    derive({ result: RESULT, sources: [source], projectRoot: projectRoot(), agent: scripted([{}]), corrections: 'Change the audience.' }),
+    /no derived spec in this project to revise/,
+  );
+});
+
+test('approval is of exact contents: any change to the spec, a persona or the ledger undoes it', async () => {
+  const root = projectRoot();
+  await derive({ result: RESULT, sources: [source], projectRoot: root, agent: scripted([{ spec: goodSpec(), facts: goodFacts() }]) });
+  const l = layout(root);
+
+  assert.deepEqual(await approvalState(l), { approved: false, reason: 'The owner has not approved the spec.' });
+  await assert.rejects(requireApproval(l), /has not approved/);
+  await assert.rejects(approve(l, { budgetUsd: 0 }), /needs a dollar budget/);
+
+  const approval = await approve(l, { budgetUsd: 75, note: 'Try stage stops at the login check.' });
+  assert.equal(approval.budgetUsd, 75);
+  assert.equal((await requireApproval(l)).hash, approval.hash);
+
+  for (const file of [l.specFile, path.join(l.personasHoldout, 'gift-giver.yaml'), l.factsFile]) {
+    const original = await readFile(file, 'utf8');
+    await writeFile(file, original + ' ');
+    assert.equal((await approvalState(l)).approved, false, `${path.basename(file)} changed`);
+    await writeFile(file, original);
+    assert.equal((await approvalState(l)).approved, true);
+  }
+
+  // A revision by the deriver also ends the approval.
+  await derive({ result: RESULT, sources: [source], projectRoot: root, agent: scripted([{ spec: goodSpec(), facts: goodFacts() }]), corrections: 'Tighten the audience wording.' });
+  assert.equal((await approvalState(l)).approved, false);
 });
