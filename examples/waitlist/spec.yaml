@@ -1,0 +1,35 @@
+# Example work directory for visitor mode (kind: task).
+# Visitors act on the app: they click, type, and submit. Point this only at
+# a copy that is safe to act on. See app.ts in this folder.
+
+experiment: waitlist-example
+kind: task
+
+goal: >
+  A man who has always wanted a robot sidekick lands from an ad and
+  joins the waitlist.
+
+entry:
+  from: a social media ad
+  viewports: [mobile]
+
+task:
+  goal: Join the waitlist
+  # No instruction: nobody asked these visitors to sign up. They decide.
+  success:                     # checked by the engine, never shown to the model
+    request: { method: POST, path_includes: /api/waitlist }
+
+visitor:
+  patience_seconds: 75
+  max_steps: 15
+  screenshots: true
+
+personas:
+  runs_per_persona: 10
+
+pass:
+  task_rate: 0.25
+
+budget:
+  iterations: 0
+  usd: 5

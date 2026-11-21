@@ -1,0 +1,91 @@
+# Spec for the Simulation Driven Development site.
+# The revising agent may read this file. It may never edit it.
+
+experiment: sdd-site
+kind: comprehension            # can a reader explain it back, not do they want it
+page: site/index.html
+
+goal: >
+  After a 60 second skim, a developer who has never heard of SDD
+  can explain what it is and how it differs from TDD.
+
+entry:
+  from: a link in a post (X, Hacker News, LinkedIn) with only the title visible
+  viewports: [mobile, desktop]
+
+reader:
+  time_budget_seconds: 60      # simulated reading time, not wall clock
+  answers_from: what_was_seen  # the reader answers only from text it actually took in
+  may_scroll_back: false
+
+personas:
+  working: personas/sdd-site/
+  holdout: personas/sdd-site-holdout/   # the revising agent never sees these
+  runs_per_persona: 40
+  archetypes:
+    - backend engineer who practices TDD daily
+    - robotics or hardware engineer who already uses physics sims
+    - engineering manager skimming between meetings
+    - builder who ships with AI coding agents
+    - skeptical senior engineer who assumes this is a rebrand
+  holdout_archetypes:
+    - QA or test engineer
+    - UX researcher who runs real usability studies
+
+questions:                     # asked after the skim, page no longer visible
+  - id: explain
+    ask: In your own words, what is Simulation Driven Development?
+    rubric:
+      required:
+        - success is defined as a measurable outcome or threshold
+        - the work is run in a simulated world and iterated until it gets there
+      bonus:
+        - real measurements keep the simulation honest (calibration)
+  - id: contrast
+    ask: How is it different from test driven development?
+    rubric:
+      required:
+        - a test checks whether code is correct, pass or fail
+        - a simulation scores whether the thing works in its world, against a threshold
+  - id: loop
+    ask: Name as many steps of the loop as you can.
+    rubric:
+      required:
+        - at least 3 of: specify, simulate, score, revise, calibrate
+
+judge:
+  model_role: separate model, never the persona model instance
+  sees: the answer and the rubric only   # blind to the page and to which variant produced it
+  human_spot_check: 10 percent of graded answers, reviewed by Chad
+
+pass:
+  explain_rate: 0.80
+  contrast_rate: 0.70
+  loop_rate: 0.60
+  rule: lower bound of the confidence interval clears each threshold
+  holdout_agrees: true
+
+secondary:                     # reported, not gating
+  - share of readers who reach the scorecard section
+  - share of skeptic personas whose main objection was answered on the page
+  - words on the page (shorter is better at equal scores)
+
+calibration:
+  method: real people
+  sample: 10 developers who have not seen the page
+  procedure: 60 seconds with the page, then the same three questions, graded with the same rubric
+  compare: simulated rate versus real rate, per question
+  publish: both numbers and the gap, on the page's scorecard
+
+budget:
+  iterations: 10
+  usd: TODO                    # Chad to set
+
+guardrails:
+  - every claim on the page is true and checkable
+  - the scorecard shows only results from real runs, never placeholder or invented numbers
+  - prior art stays credited
+  - the body stays vendor neutral, TurkeyCode appears only in the byline and footer
+  - no repeating the definition to game the skim, no keyword stuffing
+  - no em dashes
+  - the winning revision goes to Chad for sign-off before anything is published

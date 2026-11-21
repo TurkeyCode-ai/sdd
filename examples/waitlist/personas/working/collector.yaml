@@ -1,0 +1,13 @@
+id: collector
+archetype: A man in his forties who collects sci-fi props and has always wanted his own droid
+profile:
+  role: IT manager
+  experience: Builds replica props, comfortable with electronics kits
+  tech_comfort: high
+  already_uses: [3D printer, microcontroller kits, voice assistants]
+arrival:
+  source: Instagram ad
+  saw: "The robot sidekick you wanted as a kid"
+needs: [what it looks like and whether it has character, whether it can be modified]
+objections: [AI gadgets oversell what they can do, he has backed projects that never shipped]
+dials: { reading_wpm: 270, skim_rate: 0.5 }

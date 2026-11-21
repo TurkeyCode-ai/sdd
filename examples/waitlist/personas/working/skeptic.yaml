@@ -1,0 +1,13 @@
+id: skeptic
+archetype: A retired engineer in his sixties who assumes any consumer robot is vaporware
+profile:
+  role: Retired mechanical engineer
+  experience: Forty years in manufacturing, has seen many robot demos that went nowhere
+  tech_comfort: high
+  already_uses: [a tablet for manuals, nothing with a voice]
+arrival:
+  source: Facebook ad
+  saw: "The robot sidekick you wanted as a kid"
+needs: [proof that it exists and works, a straight statement of what it cannot do]
+objections: [it is a rendering and a mailing list, he does not hand out his email]
+dials: { reading_wpm: 240, skim_rate: 0.45 }

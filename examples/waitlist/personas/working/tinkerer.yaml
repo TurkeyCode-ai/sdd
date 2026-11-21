@@ -1,0 +1,13 @@
+id: tinkerer
+archetype: A man in his fifties who builds things in his garage and grew up on movie robots
+profile:
+  role: Maintenance supervisor at a plant
+  experience: Thirty years fixing machines, builds furniture and restores a motorcycle at home
+  tech_comfort: medium
+  already_uses: [a smart speaker in the garage, video tutorials on his phone]
+arrival:
+  source: Facebook ad
+  saw: "The robot sidekick you wanted as a kid"
+needs: [what it actually does on a bench, whether a regular guy can build and use it]
+objections: [most gadgets like this are toys that end up in a drawer, he will not pay for something that does not exist yet]
+dials: { reading_wpm: 230, skim_rate: 0.6 }

@@ -1,0 +1,32 @@
+# Working persona for the sdd-site experiment.
+# Archetype: skeptical senior engineer who assumes this is a rebrand.
+
+id: skeptic-senior
+archetype: skeptical senior engineer who assumes this is a rebrand
+
+profile:
+  role: Staff engineer on infrastructure
+  experience: 18 years across several stacks and several methodology fads
+  tech_comfort: very high
+  already_uses:
+    - unit, integration, and load tests
+    - canary releases and production metrics as the real check
+    - fault injection and some deterministic simulation testing
+
+arrival:
+  source: Hacker News
+  saw: "Simulation Driven Development"   # the post title, nothing else
+
+needs:
+  - what is claimed to be new here, stated plainly
+  - whether the author credits the prior work this builds on
+  - evidence, not assertion
+
+objections:
+  - this is a rebrand of simulation testing or acceptance testing
+  - a methodology page from a vendor is marketing
+
+# Starting values. Calibration tunes the global dials, not these.
+dials:
+  reading_wpm: 280
+  skim_rate: 0.6

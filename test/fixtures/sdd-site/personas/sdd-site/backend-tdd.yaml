@@ -1,0 +1,32 @@
+# Working persona for the sdd-site experiment.
+# Archetype: backend engineer who practices TDD daily.
+
+id: backend-tdd
+archetype: backend engineer who practices TDD daily
+
+profile:
+  role: Senior backend engineer on a payments team
+  experience: 9 years, mostly services and APIs
+  tech_comfort: high
+  already_uses:
+    - unit and integration tests written before the code
+    - CI that blocks merges on a failing test
+    - some property-based testing
+
+arrival:
+  source: Hacker News
+  saw: "Simulation Driven Development"   # the post title, nothing else
+
+needs:
+  - a one sentence definition they could repeat to a teammate
+  - how this relates to the tests they already write
+  - a concrete example of what gets simulated
+
+objections:
+  - this sounds like integration testing with a new name
+  - a simulation can be wrong, so passing it proves little
+
+# Starting values. Calibration tunes the global dials, not these.
+dials:
+  reading_wpm: 260
+  skim_rate: 0.5

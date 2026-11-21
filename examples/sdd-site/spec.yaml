@@ -1,0 +1,50 @@
+# Example work directory for reader mode (kind: comprehension).
+# Readers skim a page for a fixed time, then answer the questions from memory.
+# This one was written for a page that explains Simulation Driven Development.
+# Serve any page you want read on this machine and point the engine at it:
+#
+#   sdd simulate --workdir examples/sdd-site --target http://127.0.0.1:4173 \
+#     --run demo --runs 2 --budget-usd 1
+
+experiment: sdd-site-example
+kind: comprehension
+
+goal: >
+  After a 60 second skim, a developer who has never heard of SDD
+  can explain what it is, and the page reads as a serious technical
+  write-up and not as marketing.
+
+entry:
+  from: a link in a post with only the title visible
+  viewports: [mobile, desktop]
+
+reader:
+  time_budget_seconds: 60
+  answers_from: what_was_seen
+  may_scroll_back: false
+  screenshots: true            # personas also see each screen, body text blurred
+
+personas:
+  runs_per_persona: 40         # folders are fixed: personas/working, personas/holdout
+
+questions:
+  - id: explain
+    ask: In your own words, what is Simulation Driven Development?
+    rubric:
+      required:
+        - success is defined as a measurable outcome or threshold
+        - the work is run in a simulated world and iterated until it gets there
+  - id: look
+    ask: How did the page look, and what kind of site did it feel like?
+    rubric:
+      required:
+        - describes a plain, technical, or report-like page
+        - does not describe it as a sales or marketing page
+
+pass:
+  explain_rate: 0.80
+  look_rate: 0.80
+
+budget:
+  iterations: 0                # report only
+  usd: 5

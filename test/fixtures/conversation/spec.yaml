@@ -1,0 +1,36 @@
+# A conversation spec, used by the tests to check that the format loads.
+# The person's words arrive as clean text: this does not test hearing.
+
+experiment: voice-timer-fixture
+kind: conversation
+
+goal: >
+  A person cooking gets a timer set by asking out loud.
+
+entry:
+  from: talking to the assistant in the room
+  viewports: [voice]
+
+task:
+  goal: A timer is running for the length the person asked for
+  # What the person wants, in their own head. The model predicting them sees this.
+  instruction: a timer for something they are cooking. They have their own length of time in mind.
+  success:                     # never shown to the model predicting the person
+    tool_called: set_timer   # checked by the engine against what the product ran
+    outcome: A timer was actually set (an action shows it) for the length of time the person asked for, and the assistant told them so.
+
+talker:
+  adapter: adapter.ts
+  talking_to: their household voice assistant, which they set up recently
+  patience_seconds: 90
+  max_turns: 5
+
+personas:
+  runs_per_persona: 2
+
+pass:
+  task_rate: 0.8
+
+budget:
+  iterations: 0
+  usd: 1.25

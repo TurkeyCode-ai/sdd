@@ -1,0 +1,51 @@
+{
+  "name": "sdd-engine",
+  "version": "0.1.0",
+  "description": "Simulation Driven Development engine: simulated visitors use a local app and score it against thresholds",
+  "type": "module",
+  "license": "MIT",
+  "author": "Chad Cox",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TurkeyCode-ai/sdd.git"
+  },
+  "bin": {
+    "sdd": "dist/engine/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "prebuild": "node -e \"import('node:fs').then(fs => fs.rmSync('dist', { recursive: true, force: true }))\"",
+    "build": "tsc -p tsconfig.build.json",
+    "postbuild": "node -e \"import('node:fs').then(fs => fs.chmodSync('dist/engine/cli.js', 0o755))\"",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"engine/**/*.test.ts\" \"runner/**/*.test.ts\" \"judge/**/*.test.ts\" \"scorer/**/*.test.ts\" \"loop/**/*.test.ts\"",
+    "sdd": "node engine/cli.ts",
+    "simulate": "node engine/cli.ts simulate",
+    "example:waitlist": "node examples/waitlist/app.ts",
+    "sandbox": "node runner/sandbox/cli.ts serve",
+    "sandbox:check": "node runner/sandbox/cli.ts check",
+    "vendor-fonts": "node scripts/vendor-fonts.ts",
+    "reader": "node runner/cli.ts reader",
+    "batch": "node runner/batch.ts",
+    "score": "node scorer/score.ts",
+    "regrade": "node judge/regrade.ts",
+    "compare": "node scorer/compare.ts",
+    "loop": "node loop/loop.ts"
+  },
+  "dependencies": {
+    "playwright": "^1.56.0",
+    "yaml": "^2.9.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}

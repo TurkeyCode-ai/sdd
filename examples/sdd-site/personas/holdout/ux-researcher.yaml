@@ -1,0 +1,33 @@
+# HOLDOUT persona for the sdd-site experiment.
+# The revising agent must never read this file.
+# Archetype: UX researcher who runs real usability studies.
+
+id: ux-researcher
+archetype: UX researcher who runs real usability studies
+
+profile:
+  role: UX researcher at a software company
+  experience: 10 years running moderated and unmoderated usability studies
+  tech_comfort: medium, reads code a little, does not write it
+  already_uses:
+    - usability tests with 5 to 8 real participants
+    - A/B tests run with the product analytics team
+    - personas built from interviews
+
+arrival:
+  source: LinkedIn
+  saw: "Simulation Driven Development"   # the post title, nothing else
+
+needs:
+  - whether simulated users are meant to replace real participants
+  - how the simulation is checked against real people
+  - what kind of question this method can and cannot answer
+
+objections:
+  - simulated users are not users
+  - a persona written by the builder confirms what the builder already believes
+
+# Starting values. Calibration tunes the global dials, not these.
+dials:
+  reading_wpm: 250
+  skim_rate: 0.45

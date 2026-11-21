@@ -1,0 +1,32 @@
+# Working persona for the sdd-site experiment.
+# Archetype: engineering manager skimming between meetings.
+
+id: eng-manager
+archetype: engineering manager skimming between meetings
+
+profile:
+  role: Engineering manager for two product teams
+  experience: 12 years, the last 5 in management
+  tech_comfort: medium, no longer writes code daily
+  already_uses:
+    - sprint demos and acceptance criteria to decide when work is done
+    - dashboards for delivery and quality metrics
+    - AI coding tools on the team, with mixed results
+
+arrival:
+  source: LinkedIn
+  saw: "Simulation Driven Development"   # the post title, nothing else
+
+needs:
+  - the idea in one sentence they could repeat in a meeting
+  - what it would change about how their teams decide work is done
+  - whether it costs a lot to adopt
+
+objections:
+  - another methodology name for something teams already do
+  - no time to read a long page
+
+# Starting values. Calibration tunes the global dials, not these.
+dials:
+  reading_wpm: 300
+  skim_rate: 0.7

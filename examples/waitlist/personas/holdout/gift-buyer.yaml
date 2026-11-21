@@ -1,0 +1,13 @@
+id: gift-buyer
+archetype: A woman in her fifties looking for a gift for a husband who tinkers
+profile:
+  role: Office manager
+  experience: Not technical, buys practical gifts
+  tech_comfort: low
+  already_uses: [a smartphone, online shopping]
+arrival:
+  source: Facebook ad shared by a friend
+  saw: "The robot sidekick you wanted as a kid"
+needs: [what it costs and when it can be bought, whether he would actually use it]
+objections: [she cannot tell if it is real, she does not join mailing lists for things she cannot buy]
+dials: { reading_wpm: 220, skim_rate: 0.65 }

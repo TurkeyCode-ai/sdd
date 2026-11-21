@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Simulation Driven Development: define done as a measurable outcome in a simulated world, iterate until the simulation gets there, and keep the simulation honest with real measurements.">
+<style>body{margin:0}</style>
+<title>Simulation Driven Development</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+/* Layout: a test report. Mono margin labels in a left rail, one reading column,
+   and the scorecard as the instrument. Blue marks anything simulated,
+   orange marks anything measured for real. */
+:root {
+  --paper: #EBEEF1;
+  --panel: #F8FAFB;
+  --ink: #0E1620;
+  --muted: #566370;
+  --rule: #C3CBD3;
+  --sim: #1B4FD1;
+  --real: #B03C05;
+  --sim-wash: #DDE6FA;
+  --real-wash: #FBE5D8;
+  --display: "Barlow Condensed", "Arial Narrow", Impact, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0C1218; --panel: #131B23; --ink: #E7ECF1; --muted: #93A0AD; --rule: #2B3743;
+    --sim: #7EA6FF; --real: #FF9255; --sim-wash: #16233F; --real-wash: #3A2012;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0C1218; --panel: #131B23; --ink: #E7ECF1; --muted: #93A0AD; --rule: #2B3743;
+  --sim: #7EA6FF; --real: #FF9255; --sim-wash: #16233F; --real-wash: #3A2012;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+}
+.page {
+  max-width: 70rem;
+  margin-inline: auto;
+  padding-left: max(clamp(16px, 4vw, 40px), env(safe-area-inset-left, 0px));
+  padding-right: max(clamp(16px, 4vw, 40px), env(safe-area-inset-right, 0px));
+  padding-block: 2.5rem 4rem;
+}
+p, h1, h2, h3, ol, ul, dl, dd, figure { margin: 0; }
+a { color: inherit; text-decoration-color: var(--sim); text-underline-offset: 0.18em; }
+a:focus-visible { outline: 2px solid var(--sim); outline-offset: 3px; }
+
+.label {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.label.sim { color: var(--sim); }
+.label.real { color: var(--real); }
+
+/* Hero */
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2.25rem;
+  padding-bottom: 3rem;
+}
+.hero-text { display: grid; gap: 1.5rem; min-width: 0; }
+h1 {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(3.2rem, 9vw, 6.25rem);
+  line-height: 0.9;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+h1 span { display: block; }
+h1 .sim { color: var(--sim); }
+.lead {
+  display: grid;
+  gap: 0.35rem;
+  font-size: clamp(1.2rem, 2.3vw, 1.45rem);
+  line-height: 1.35;
+  font-weight: 500;
+  max-width: 36ch;
+}
+.byline { color: var(--muted); font-size: 0.95rem; }
+.plot { max-width: 27rem; display: grid; gap: 0.6rem; min-width: 0; }
+.plot svg { width: 100%; height: auto; display: block; }
+.plot text { font-family: var(--mono); font-size: 11px; fill: var(--muted); }
+.plot .strong { fill: var(--ink); font-weight: 500; }
+.plot figcaption { font-size: 0.85rem; color: var(--muted); line-height: 1.45; }
+@media (min-width: 60rem) {
+  .hero { grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr); gap: 3rem; align-items: end; }
+}
+
+/* Sections */
+.sec {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  padding-block: 3rem;
+  border-top: 1px solid var(--rule);
+}
+.sec-body { display: grid; gap: 1.5rem; min-width: 0; }
+@media (min-width: 60rem) {
+  .sec { grid-template-columns: 10rem minmax(0, 1fr); gap: 2.5rem; }
+  .sec > .label { padding-top: 0.7rem; }
+}
+h2 {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: clamp(1.9rem, 4.2vw, 2.75rem);
+  line-height: 1.04;
+  text-wrap: balance;
+  max-width: 22ch;
+}
+.prose { max-width: 62ch; }
+.note { max-width: 62ch; color: var(--muted); }
+.note strong { color: var(--ink); font-weight: 600; }
+
+/* Test versus simulation */
+.vs { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; align-items: start; }
+.vs > div { display: grid; gap: 0.6rem; align-content: start; padding: 1.25rem; border: 1px solid var(--rule); min-width: 0; }
+.vs > .is-sim { background: var(--panel); border: 2px solid var(--sim); }
+.vs .q { font-family: var(--display); font-weight: 600; font-size: 1.7rem; line-height: 1.08; }
+.specline {
+  font-family: var(--mono);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  padding: 0.6rem 0.75rem;
+  background: var(--sim-wash);
+  overflow-wrap: anywhere;
+}
+.specline.plain { background: transparent; border: 1px dashed var(--rule); }
+.specline b { font-weight: 500; color: var(--sim); }
+@media (min-width: 44rem) {
+  .vs { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); }
+}
+
+/* The loop */
+.loop { list-style: none; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
+.loop li { display: grid; gap: 0.3rem; align-content: start; padding: 0.9rem 0 0.9rem 1rem; border-left: 4px solid var(--ink); min-width: 0; }
+.loop li.cycle { border-color: var(--sim); }
+.loop li.cal { border-color: var(--real); }
+.loop h3 { font-family: var(--display); font-weight: 800; font-size: 1.6rem; line-height: 1; text-transform: uppercase; }
+.loop p { font-size: 0.95rem; line-height: 1.5; }
+@media (min-width: 60rem) {
+  .loop { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .loop li { padding: 1rem 1.1rem 0 0; border-left: 0; border-top: 4px solid var(--ink); }
+}
+
+/* Rules */
+.rules { display: grid; }
+.rules > div { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.4rem; padding-block: 1.1rem; border-top: 1px dashed var(--rule); }
+.rules > div:first-child { border-top: 0; padding-top: 0; }
+.rules dt { font-family: var(--display); font-weight: 600; font-size: 1.55rem; line-height: 1.1; }
+.rules dd { max-width: 52ch; }
+@media (min-width: 44rem) {
+  .rules > div { grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr); gap: 2rem; align-items: baseline; }
+}
+
+/* Two simulators */
+.sims { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2rem; }
+.sims > div { display: grid; gap: 0.9rem; align-content: start; min-width: 0; }
+.sims h3 { font-family: var(--display); font-weight: 800; font-size: 1.6rem; line-height: 1; text-transform: uppercase; }
+.sims dl { display: grid; gap: 0.8rem; }
+.sims dl > div { display: grid; gap: 0.15rem; }
+@media (min-width: 44rem) {
+  .sims { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2.5rem; }
+}
+
+/* Scorecard */
+.card { background: var(--panel); border: 1px solid var(--rule); }
+.card-head { display: flex; flex-wrap: wrap; gap: 0.4rem 1.25rem; padding: 0.8rem 1.1rem; border-bottom: 1px solid var(--rule); }
+.card-goal { padding: 1rem 1.1rem 0.25rem; font-weight: 500; }
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas: "check check" "gauge gauge" "sim real";
+  gap: 0.6rem 1rem;
+  padding: 1rem 1.1rem;
+  border-top: 1px dashed var(--rule);
+  align-items: center;
+}
+.row.cols { display: none; }
+.row .check { grid-area: check; }
+.row .gauge { grid-area: gauge; display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+.row .v-sim { grid-area: sim; }
+.row .v-real { grid-area: real; }
+.track { position: relative; flex: 1 1 auto; height: 0.6rem; border: 1px solid var(--rule); background: var(--paper); }
+.track i { position: absolute; top: -0.3rem; bottom: -0.3rem; left: var(--t); width: 2px; background: var(--ink); }
+.thr { font-family: var(--mono); font-size: 0.85rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.val { display: grid; gap: 0.2rem; }
+.val .pending {
+  justify-self: start;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--muted);
+  padding: 0.15rem 0.5rem;
+  border: 1px dashed var(--rule);
+}
+.key { display: inline-flex; align-items: center; gap: 0.4rem; }
+.key::before { content: ""; width: 0.6rem; height: 0.6rem; background: var(--muted); }
+.key.sim::before { background: var(--sim); }
+.key.real::before { background: var(--real); }
+@media (min-width: 52rem) {
+  .row {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) 9.5rem 9.5rem;
+    grid-template-areas: "check gauge sim real";
+  }
+  .row.cols { display: grid; padding-block: 0.7rem; border-top: 0; }
+  .row:not(.cols) .val .label { display: none; }
+}
+
+/* Lineage */
+.lineage { list-style: none; padding: 0; display: grid; gap: 0.9rem; max-width: 62ch; }
+.lineage strong { font-weight: 600; }
+
+footer { padding-top: 2rem; border-top: 1px solid var(--rule); display: flex; flex-wrap: wrap; gap: 0.4rem 1.5rem; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="hero">
+    <div class="hero-text">
+      <p class="label">A development method for hardware and software</p>
+      <h1><span class="sim">Simulation</span><span>Driven</span><span>Development</span></h1>
+      <div class="lead">
+        <p>Define done as a measurable outcome in a simulated world.</p>
+        <p>Iterate until the simulation gets there.</p>
+        <p>Keep the simulation honest with real measurements.</p>
+      </div>
+      <p class="byline">A term and method by Chad Cox. Draft 0, November 2026.</p>
+    </div>
+
+    <figure class="plot">
+      <svg viewBox="0 0 360 244" role="img" aria-label="Illustration: a score rising over eight iterations until it clears a threshold of 0.80">
+        <line x1="44" y1="20" x2="44" y2="200" stroke="var(--rule)" stroke-width="1" fill="none"/>
+        <line x1="44" y1="200" x2="344" y2="200" stroke="var(--rule)" stroke-width="1" fill="none"/>
+        <text x="38" y="204" text-anchor="end">0</text>
+        <text x="38" y="114" text-anchor="end">0.5</text>
+        <text x="38" y="24" text-anchor="end">1.0</text>
+        <text x="50" y="14">score</text>
+
+        <line x1="44" y1="56" x2="344" y2="56" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="5 4" fill="none"/>
+        <text class="strong" x="50" y="49">threshold 0.80</text>
+
+        <g stroke="var(--sim)" stroke-width="1.5" fill="none">
+          <line x1="60" y1="135.2" x2="60" y2="153.2"/>
+          <line x1="98" y1="115.4" x2="98" y2="133.4"/>
+          <line x1="136" y1="119" x2="136" y2="137"/>
+          <line x1="174" y1="92" x2="174" y2="110"/>
+          <line x1="212" y1="77.6" x2="212" y2="95.6"/>
+          <line x1="250" y1="63.2" x2="250" y2="81.2"/>
+          <line x1="288" y1="50.6" x2="288" y2="68.6"/>
+          <line x1="326" y1="36.2" x2="326" y2="54.2"/>
+        </g>
+        <g fill="var(--sim)" stroke="none">
+          <circle cx="60" cy="144.2" r="4"/>
+          <circle cx="98" cy="124.4" r="4"/>
+          <circle cx="136" cy="128" r="4"/>
+          <circle cx="174" cy="101" r="4"/>
+          <circle cx="212" cy="86.6" r="4"/>
+          <circle cx="250" cy="72.2" r="4"/>
+          <circle cx="288" cy="59.6" r="4"/>
+          <circle cx="326" cy="45.2" r="5.5"/>
+        </g>
+        <text class="strong" x="326" y="28" text-anchor="middle">done</text>
+
+        <g text-anchor="middle">
+          <text x="60" y="216">0</text>
+          <text x="98" y="216">1</text>
+          <text x="136" y="216">2</text>
+          <text x="174" y="216">3</text>
+          <text x="212" y="216">4</text>
+          <text x="250" y="216">5</text>
+          <text x="288" y="216">6</text>
+          <text x="326" y="216">7</text>
+          <text x="194" y="236">iteration</text>
+        </g>
+      </svg>
+      <figcaption>Illustration, not data. Every run is scored with its noise. Run 6 touches the line and does not count. Run 7 clears it with the whole bar.</figcaption>
+    </figure>
+  </header>
+
+  <main>
+
+    <section class="sec" id="contrast">
+      <p class="label">Contrast</p>
+      <div class="sec-body">
+        <h2>A test checks the code. A simulation checks the outcome.</h2>
+        <div class="vs">
+          <div>
+            <p class="label">Test driven</p>
+            <p class="q">Is the code correct?</p>
+            <p>The answer is pass or fail.</p>
+            <p class="specline plain">assert cart.total() == 42.00</p>
+          </div>
+          <div class="is-sim">
+            <p class="label sim">Simulation driven</p>
+            <p class="q">Does the thing work in its world?</p>
+            <p>The answer is a score against a threshold.</p>
+            <p class="specline"><b>Hardware:</b> 95 of 100 simulated runs clear a 7.5 inch step carrying 20 lbs.</p>
+            <p class="specline"><b>Software:</b> 80% of first-time visitors finish setup in under 3 minutes.</p>
+          </div>
+        </div>
+        <p class="note">You keep your tests. SDD adds a referee for the question tests cannot answer.</p>
+      </div>
+    </section>
+
+    <section class="sec" id="loop">
+      <p class="label">The loop</p>
+      <div class="sec-body">
+        <h2>Five steps. Three of them repeat.</h2>
+        <ol class="loop">
+          <li>
+            <span class="label">Step 1</span>
+            <h3>Specify</h3>
+            <p>Write done as a number: an outcome, a threshold, and how many runs.</p>
+          </li>
+          <li class="cycle">
+            <span class="label sim">Step 2</span>
+            <h3>Simulate</h3>
+            <p>Run the design in a simulated world. Physics for hardware, simulated users for software.</p>
+          </li>
+          <li class="cycle">
+            <span class="label sim">Step 3</span>
+            <h3>Score</h3>
+            <p>Measure the runs against the threshold, and report the noise.</p>
+          </li>
+          <li class="cycle">
+            <span class="label sim">Step 4</span>
+            <h3>Revise</h3>
+            <p>Change the design. Leave the spec and the simulation alone.</p>
+          </li>
+          <li class="cal">
+            <span class="label real">Step 5</span>
+            <h3>Calibrate</h3>
+            <p>Measure the real thing. Where the simulation predicted wrong, fix the simulation.</p>
+          </li>
+        </ol>
+        <p class="note"><strong>Steps 2 to 4 repeat until the threshold holds.</strong> They can run unattended. The simulation supplies the feedback a person would otherwise give, so a coding agent can work toward the goal on its own.</p>
+      </div>
+    </section>
+
+    <section class="sec" id="rules">
+      <p class="label">Rules</p>
+      <div class="sec-body">
+        <h2>Five rules that keep it from becoming a video game.</h2>
+        <dl class="rules">
+          <div>
+            <dt>Done is a number.</dt>
+            <dd>If you cannot measure it, you cannot simulate toward it.</dd>
+          </div>
+          <div>
+            <dt>The builder never touches the referee.</dt>
+            <dd>Whoever revises the work, person or agent, cannot edit the spec, the simulated world, or the scorer.</dd>
+          </div>
+          <div>
+            <dt>Trust is earned by prediction.</dt>
+            <dd>A simulation is believed once it predicts something you already measured. Calibrate first, and publish the gap.</dd>
+          </div>
+          <div>
+            <dt>Report the noise.</dt>
+            <dd>Simulations are statistical. A difference inside the noise is not a result.</dd>
+          </div>
+          <div>
+            <dt>Hold something back.</dt>
+            <dd>Keep scenarios the builder never sees. They catch a design that learned to please the simulation and nothing else.</dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+
+    <section class="sec" id="simulators">
+      <p class="label">Simulators</p>
+      <div class="sec-body">
+        <h2>One method, two simulators.</h2>
+        <div class="sims">
+          <div>
+            <h3>Hardware</h3>
+            <dl>
+              <div>
+                <dt class="label sim">Simulated by</dt>
+                <dd>A physics engine running the machine through its task, many times.</dd>
+              </div>
+              <div>
+                <dt class="label real">Calibrated by</dt>
+                <dd>Bench measurements of the real machine: weights, torques, timings.</dd>
+              </div>
+            </dl>
+          </div>
+          <div>
+            <h3>Software</h3>
+            <dl>
+              <div>
+                <dt class="label sim">Simulated by</dt>
+                <dd>Simulated users with human limits. They skim, lose patience, mis-tap, and quit.</dd>
+              </div>
+              <div>
+                <dt class="label real">Calibrated by</dt>
+                <dd>Real analytics and real people doing the same task.</dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+        <p class="note">Physics is the stricter referee. Simulated users lean agreeable and efficient, so they need calibration the most.</p>
+      </div>
+    </section>
+
+    <section class="sec" id="scorecard">
+      <p class="label">Scorecard</p>
+      <div class="sec-body">
+        <h2>This page is a test case.</h2>
+        <p class="prose">The page you are reading is being built with the method it describes. Its spec is below. Nothing has been run yet, so nothing is scored yet.</p>
+        <div class="card">
+          <div class="card-head">
+            <span class="label">Run 0</span>
+            <span class="label">Written by hand</span>
+            <span class="label">Not yet simulated</span>
+          </div>
+          <p class="card-goal">After a 60 second skim, a developer who has never heard of SDD can:</p>
+          <div class="row cols">
+            <span class="label">Check</span>
+            <span class="label">Threshold</span>
+            <span class="label key sim">Simulated</span>
+            <span class="label key real">Real people</span>
+          </div>
+          <div class="row">
+            <p class="check">Explain what SDD is</p>
+            <div class="gauge"><div class="track" style="--t: 80%"><i></i></div><span class="thr">80%</span></div>
+            <div class="val v-sim"><span class="label key sim">Simulated</span><span class="pending">not run</span></div>
+            <div class="val v-real"><span class="label key real">Real people</span><span class="pending">not run</span></div>
+          </div>
+          <div class="row">
+            <p class="check">Say how it differs from TDD</p>
+            <div class="gauge"><div class="track" style="--t: 70%"><i></i></div><span class="thr">70%</span></div>
+            <div class="val v-sim"><span class="label key sim">Simulated</span><span class="pending">not run</span></div>
+            <div class="val v-real"><span class="label key real">Real people</span><span class="pending">not run</span></div>
+          </div>
+          <div class="row">
+            <p class="check">Name three of the five steps</p>
+            <div class="gauge"><div class="track" style="--t: 60%"><i></i></div><span class="thr">60%</span></div>
+            <div class="val v-sim"><span class="label key sim">Simulated</span><span class="pending">not run</span></div>
+            <div class="val v-real"><span class="label key real">Real people</span><span class="pending">not run</span></div>
+          </div>
+        </div>
+        <p class="note">When the simulated score and the real score are both in, both go here, along with the gap between them.</p>
+      </div>
+    </section>
+
+    <section class="sec" id="lineage">
+      <p class="label">Lineage</p>
+      <div class="sec-body">
+        <h2>What it builds on.</h2>
+        <ul class="lineage">
+          <li><strong>Test driven development.</strong> Write the check first, then make it pass.</li>
+          <li><strong>Simulation-driven design</strong> in mechanical engineering. Run structural and fluid analysis early, so the analysis shapes the design.</li>
+          <li><strong>Deterministic simulation testing</strong> at FoundationDB, TigerBeetle, and Antithesis. Run a whole system inside a simulated world of failures.</li>
+          <li><strong>Simulated users.</strong> <a href="https://arxiv.org/abs/2504.09407">UXAgent</a> and <a href="https://arxiv.org/abs/2504.09723">AgentA/B</a> send LLM agents with personas through real websites.</li>
+        </ul>
+        <p class="note"><strong>What SDD adds:</strong> the simulation as the definition of done, a loop that revises until the threshold holds, and calibration as a required step.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <span class="label">Simulation Driven Development</span>
+    <span class="label">Chad Cox</span>
+    <a class="label" href="https://turkeycode.ai">A TurkeyCode method</a>
+    <span class="label">2026</span>
+  </footer>
+
+</div>
+</body>
+</html>

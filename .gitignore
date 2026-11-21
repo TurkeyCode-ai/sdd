@@ -1,0 +1,26 @@
+node_modules/
+dist/
+.env
+*.tgz
+
+# Run output. Written by the engine, never committed.
+/traces/
+/shots/
+/reports/
+/grades/
+/loops/
+/variants/
+/examples/*/traces/
+/examples/*/shots/
+/examples/*/reports/
+
+# Not part of the public engine: the first experiment (the SDD page and the
+# loop that revised it), working notes, and a voice example with its own data.
+/SDD-BRIEF.md
+/notes/
+/site/
+/specs/
+/personas/
+/loop/
+/scripts/
+/examples/*-voice/
