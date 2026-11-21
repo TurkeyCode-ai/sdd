@@ -146,7 +146,7 @@ export function visibleText(html: string): string {
     .replace(/<!--[\s\S]*?-->/g, ' ')
     .replace(/<(br|\/p|\/div|\/h[1-6]|\/li|\/section|\/tr|\/pre)[^>]*>/gi, '\n')
     .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ').replace(/&middot;/g, '·').replace(/&mdash;/g, '—').replace(/&ndash;/g, '–').replace(/&rarr;/g, '→').replace(/&copy;/g, '©').replace(/&#(\d+);/g, (_m, n) => String.fromCodePoint(Number(n))).replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
     .replace(/[ \t]+/g, ' ')
     .split('\n').map((line) => line.trim()).filter((line) => line.length > 0).join('\n');
 }

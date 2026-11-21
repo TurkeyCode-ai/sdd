@@ -187,16 +187,22 @@ export async function designCommand(args: string[], deps: PipelineCliDeps & { ll
 export async function scoreCommand(args: string[], deps: PipelineCliDeps & { llm?: LLM } = {}): Promise<number> {
   const log = deps.log ?? console.log;
   const logError = deps.logError ?? console.error;
-  const usage = 'Usage: sdd score <project> --page <folder with index.html> --name <label> [--runs 4] [--try 5] [--load-seconds n] [--only read,decide,try,agent]';
+  const usage = 'Usage: sdd score <project> (--page <folder with index.html> | --target http://localhost:PORT [--entry /path]) --name <label> [--runs 4] [--try 5] [--load-seconds n] [--only read,decide,try,agent]';
   let parsed;
   try {
-    parsed = parseArgs({ args, allowPositionals: true, options: { page: { type: 'string' }, name: { type: 'string' }, runs: { type: 'string', default: '4' }, try: { type: 'string', default: '5' }, 'load-seconds': { type: 'string' }, only: { type: 'string' } } });
+    parsed = parseArgs({ args, allowPositionals: true, options: { page: { type: 'string' }, name: { type: 'string' }, runs: { type: 'string', default: '4' }, try: { type: 'string', default: '5' }, 'load-seconds': { type: 'string' }, only: { type: 'string' }, target: { type: 'string' }, entry: { type: 'string', default: '/' } } });
   } catch (err) {
     logError((err as Error).message);
     return 2;
   }
   const id = parsed.positionals[0];
-  const { page, name } = parsed.values;
+  const { name, target } = parsed.values;
+  // A running build on this machine can stand in for a folder: the verify step scores the real thing.
+  if (target && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(target)) {
+    logError('--target must be a build running on this machine, such as http://localhost:3000. Live sites are never scored.');
+    return 2;
+  }
+  const page = parsed.values.page ?? (target ? '.' : undefined);
   if (!id || !page || !name || !/^[a-z0-9][a-z0-9-]*$/.test(name)) {
     logError(usage);
     return 2;
@@ -217,7 +223,7 @@ export async function scoreCommand(args: string[], deps: PipelineCliDeps & { llm
     // For sweeping an assumption: a slower page, or only some stages.
     const loadSeconds = parsed.values['load-seconds'] === undefined ? undefined : Number(parsed.values['load-seconds']);
     const only = parsed.values.only?.split(',').map((x) => x.trim()) as ('read' | 'decide' | 'try' | 'agent')[] | undefined;
-    const score = await scoreMock({ layout: l, spec, mockDir: path.resolve(page), evidenceDir, runs, tryCount, budgetUsd: left, llm: deps.llm ?? createLLM(), ledger, log, loadSeconds, only });
+    const score = await scoreMock({ layout: l, spec, mockDir: path.resolve(page), evidenceDir, runs, tryCount, budgetUsd: left, llm: deps.llm ?? createLLM(), ledger, log, loadSeconds, only, running: target ? { origin: target, entry: parsed.values.entry } : undefined });
     await logCost(l, { step: 'design', what: `simulation, page "${name}"`, usd: score.costUsd, durationMs: 0, detail: { runs, tryCount } });
     const verdict = mockVerdict(score);
     await writeFile(path.join(evidenceDir, 'score.json'), JSON.stringify({ name, page: path.resolve(page), runs, tryCount, verdict, score }, null, 2) + '\n');

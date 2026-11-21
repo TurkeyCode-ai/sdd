@@ -131,8 +131,10 @@ export const workingMet = (score: MockScore): boolean =>
 export interface ScoreOptions {
   layout: ProjectLayout;
   spec: PipelineSpec;
-  /** Folder holding the mock's index.html. */
+  /** Folder holding the mock's index.html. Not used when a running build is given instead. */
   mockDir: string;
+  /** A build already running on this machine, for the verify step: its origin, and the path of the page. */
+  running?: { origin: string; entry: string };
   /** Where this scoring's engine folders and transcripts go. */
   evidenceDir: string;
   runs: number;
@@ -170,7 +172,15 @@ export async function scoreMock(options: ScoreOptions): Promise<MockScore> {
   const run = 'score';
   await mkdir(options.evidenceDir, { recursive: true });
 
-  const server = await startStaticServer(options.mockDir);
+  const server = options.running ? { origin: options.running.origin, close: async () => {} } : await startStaticServer(options.mockDir);
+  const entry = options.running?.entry ?? '/';
+  // What the terminal and agent stages read: the page's text, from the file or from the running build.
+  const pageHtml = async (): Promise<string> => {
+    if (!options.running) return readFile(path.join(options.mockDir, 'index.html'), 'utf8');
+    const response = await fetch(options.running.origin + entry);
+    if (!response.ok) throw new Error(`The running build answered ${response.status} for ${entry}`);
+    return response.text();
+  };
   try {
     for (const stage of spec.stages) {
       if (stage.kind === 'try' || stage.kind === 'agent' || !only.includes(stage.kind)) continue;
@@ -184,7 +194,7 @@ export async function scoreMock(options: ScoreOptions): Promise<MockScore> {
       log(`  ${stage.id}: ${spec.personas.length} people x ${stage.viewports.length} screens x ${options.runs} visits`);
       // The owner's rule: local copies only, with outside requests blocked. A blocked request is recorded, not a failure.
       await simulate(
-        ['--workdir', workdir, '--target', server.origin, '--run', run, '--runs', String(options.runs), '--budget-usd', Math.max(0.05, options.budgetUsd - score.costUsd).toFixed(2), '--outside-requests', 'block'],
+        ['--workdir', workdir, '--target', server.origin, '--entry', entry, '--run', run, '--runs', String(options.runs), '--budget-usd', Math.max(0.05, options.budgetUsd - score.costUsd).toFixed(2), '--outside-requests', 'block'],
         { llm, log: () => {}, logError: () => {} },
       );
       const report = JSON.parse(await readFile(path.join(workdir, 'reports', `${run}.json`), 'utf8')) as EngineReport;
@@ -223,7 +233,7 @@ export async function scoreMock(options: ScoreOptions): Promise<MockScore> {
   const tryDef = spec.stages.find((s): s is TryStage => s.kind === 'try');
   if (tryDef && only.includes('try') && options.tryCount > 0) {
     log(`  ${tryDef.id}: ${options.tryCount} developers on clean machines`);
-    const html = await readFile(path.join(options.mockDir, 'index.html'), 'utf8');
+    const html = await pageHtml();
     const stamp = Date.now().toString(36);
     const start = options.startMachine ?? ((stage: TryStage, n: number) => startContainer(stage, `sdd-try-${stamp}-${n}`));
     try {
@@ -251,7 +261,7 @@ export async function scoreMock(options: ScoreOptions): Promise<MockScore> {
       score.notRun.push({ stage: agentDef.id, why: 'no ledger was given to check replies against' });
     } else {
       log(`  ${agentDef.id}: ${agentDef.requests.length} requests x ${options.runs} agents`);
-      const html = await readFile(path.join(options.mockDir, 'index.html'), 'utf8');
+      const html = await pageHtml();
       const result = await agentStage(agentDef, visibleText(html), options.ledger, llm, options.runs);
       score.costUsd += result.costUsd;
       await writeFile(path.join(options.evidenceDir, `${agentDef.id}.json`), JSON.stringify(result, null, 2) + '\n');
