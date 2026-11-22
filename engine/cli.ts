@@ -39,7 +39,7 @@ is ever reached.
 Exit codes: 0 report written, 1 runs failed or the engine hit an error (the
 report says which), 2 bad arguments, 3 budget reached.
 
-Needs: Node 24 or later, the browser from "sdd setup", and the claude CLI
+Needs: Node 20.11 or later, the browser from "sdd setup", and the claude CLI
 logged in.`;
 
 async function version(): Promise<string> {

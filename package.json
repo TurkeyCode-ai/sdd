@@ -1,6 +1,6 @@
 {
   "name": "sdd-engine",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Simulation Driven Development engine: simulated visitors use a local app and score it against thresholds",
   "type": "module",
   "license": "MIT",
@@ -18,7 +18,7 @@
     "LICENSE"
   ],
   "engines": {
-    "node": ">=24"
+    "node": ">=20.11"
   },
   "scripts": {
     "prebuild": "node -e \"import('node:fs').then(fs => fs.rmSync('dist', { recursive: true, force: true }))\"",

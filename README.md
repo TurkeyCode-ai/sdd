@@ -29,7 +29,7 @@ npx sdd-engine setup
 npx sdd-engine --help
 ```
 
-Needs Node 24 or later, and the [Claude Code](https://claude.com/claude-code)
+Needs Node 20.11 or later, and the [Claude Code](https://claude.com/claude-code)
 CLI installed and logged in. The engine calls models through `claude -p`, so a
 run is billed to whatever that CLI is logged in with.
 
@@ -162,6 +162,10 @@ Chosen by environment variable, with defaults:
 | `SDD_MODEL_JUDGE` | grades answers and outcomes | `claude-sonnet-5-5` |
 
 ## Develop
+
+Working on the engine itself needs Node 22.18 or later, because the tests and
+the example app are TypeScript that Node runs directly. The published command
+is compiled and runs on Node 20.11 or later.
 
 ```bash
 npm install
