@@ -20,6 +20,15 @@ npm install -g sdd-engine
 sdd setup          # downloads the browser the engine drives, once
 ```
 
+If the global install fails with `EACCES`, your user cannot write to npm's
+global folder. That is the default on Linux with the system Node and on the
+official Docker image. Run it with `npx` instead, which needs no install:
+
+```bash
+npx sdd-engine setup
+npx sdd-engine --help
+```
+
 Needs Node 24 or later, and the [Claude Code](https://claude.com/claude-code)
 CLI installed and logged in. The engine calls models through `claude -p`, so a
 run is billed to whatever that CLI is logged in with.
