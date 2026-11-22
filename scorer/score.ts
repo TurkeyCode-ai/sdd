@@ -222,7 +222,7 @@ await writeFile(
   ) + '\n',
 );
 
-// Spot-check sheet: a seeded 10 percent sample of graded answers for Chad.
+// Spot-check sheet: a seeded 10 percent sample of graded answers for the owner.
 const rng = createRng(deriveSeed('spot-check', batch));
 const csv = (s: string) => `"${s.replaceAll('"', '""')}"`;
 const sample = traces
